@@ -1,29 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
+import EndguardX from "@/components/endguardx/EndguardX";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Your App" },
-      { name: "description", content: "Replace this with a one-sentence description of your app." },
-      { property: "og:title", content: "Your App" },
-      { property: "og:description", content: "Replace this with a one-sentence description of your app." },
+      { title: "EndguardX - Endpoint Control Platform" },
+      { name: "description", content: "EndguardX endpoint control platform — monitor agents, events, alerts and policy violations from a single dashboard." },
+      { property: "og:title", content: "EndguardX - Endpoint Control Platform" },
+      { property: "og:description", content: "Monitor endpoint agents, events, alerts and policy violations in real time." },
     ],
   }),
-  component: Index,
+  component: EndguardX,
+  ssr: false,
 });
-
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
