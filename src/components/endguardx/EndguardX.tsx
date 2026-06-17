@@ -397,10 +397,38 @@ export default function EndguardX() {
     return agents.filter((a) => now - +parseUtc(a.last_seen) < 12 * 60_000);
   }, [agents]);
 
+  const alertsFiltered = useMemo(() => {
+    const q = alertFilters.search.trim().toLowerCase();
+    return alerts.filter((a) =>
+      (!alertFilters.severity || a.severity === alertFilters.severity) &&
+      (!q || a.rule.toLowerCase().includes(q) || a.hostname.toLowerCase().includes(q) || a.agent_id.toLowerCase().includes(q))
+    );
+  }, [alerts, alertFilters]);
   const alertsPaged = useMemo(() => {
     const start = (alertsPage - 1) * ALERTS_PER_PAGE;
-    return alerts.slice(start, start + ALERTS_PER_PAGE);
-  }, [alerts, alertsPage]);
+    return alertsFiltered.slice(start, start + ALERTS_PER_PAGE);
+  }, [alertsFiltered, alertsPage]);
+  const alertsTotalPages = Math.max(1, Math.ceil(alertsFiltered.length / ALERTS_PER_PAGE));
+
+  const agentsFiltered = useMemo(() => {
+    const q = agentFilters.search.trim().toLowerCase();
+    const now = Date.now();
+    return agents.filter((a) => {
+      const online = now - +parseUtc(a.last_seen) < 12 * 60_000;
+      if (agentFilters.status === "online" && !online) return false;
+      if (agentFilters.status === "offline" && online) return false;
+      if (q && !a.hostname.toLowerCase().includes(q) && !a.agent_id.toLowerCase().includes(q) && !(a.ip_address || "").toLowerCase().includes(q) && !a.os_type.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [agents, agentFilters]);
+  const agentsPaged = useMemo(() => {
+    const start = (agentsPage - 1) * AGENTS_PER_PAGE;
+    return agentsFiltered.slice(start, start + AGENTS_PER_PAGE);
+  }, [agentsFiltered, agentsPage]);
+  const agentsTotalPages = Math.max(1, Math.ceil(agentsFiltered.length / AGENTS_PER_PAGE));
+
+  useEffect(() => { setAlertsPage(1); }, [alertFilters]);
+  useEffect(() => { setAgentsPage(1); }, [agentFilters]);
 
   // ---------- Scan actions ----------
   const scanAgent = async (a: Agent) => {
