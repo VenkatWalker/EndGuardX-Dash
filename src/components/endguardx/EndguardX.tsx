@@ -737,22 +737,47 @@ export default function EndguardX() {
                   {eventsTotal === 0 ? "0 events" :
                     `${formatNum(evOffset + 1)}–${formatNum(Math.min(evOffset + evLimit, eventsTotal))} of ${formatNum(eventsTotal)} events`}
                 </span>
-                <button disabled={evOffset === 0} onClick={() => setEvOffset(Math.max(0, evOffset - evLimit))}>← Prev</button>
-                <span>Page {Math.floor(evOffset / evLimit) + 1} / {Math.max(1, Math.ceil(eventsTotal / evLimit))}</span>
-                <button disabled={evOffset + evLimit >= eventsTotal} onClick={() => setEvOffset(evOffset + evLimit)}>Next →</button>
+                {(() => {
+                  const totalPages = Math.max(1, Math.ceil(eventsTotal / evLimit));
+                  const curPage = Math.floor(evOffset / evLimit) + 1;
+                  return (
+                    <>
+                      <button disabled={evOffset === 0} onClick={() => setEvOffset(0)}>« First</button>
+                      <button disabled={evOffset === 0} onClick={() => setEvOffset(Math.max(0, evOffset - evLimit))}>← Prev</button>
+                      <span>Page {curPage} / {totalPages}</span>
+                      <button disabled={evOffset + evLimit >= eventsTotal} onClick={() => setEvOffset(evOffset + evLimit)}>Next →</button>
+                      <button disabled={evOffset + evLimit >= eventsTotal} onClick={() => setEvOffset((totalPages - 1) * evLimit)}>Last »</button>
+                    </>
+                  );
+                })()}
               </div>
             </>
           )}
 
           {tab === "alerts" && (
             <>
+              <div className="gx-filter-bar">
+                <span className="gx-filter-label">SEVERITY</span>
+                <select value={alertFilters.severity} onChange={(e) => setAlertFilters({ ...alertFilters, severity: e.target.value })}>
+                  <option value="">All</option>
+                  <option value="CRITICAL">CRITICAL</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="LOW">LOW</option>
+                </select>
+                <span className="gx-filter-label">SEARCH</span>
+                <input type="text" value={alertFilters.search}
+                  onChange={(e) => setAlertFilters({ ...alertFilters, search: e.target.value })}
+                  placeholder="rule, host, agent id…" style={{ width: 220 }} />
+                <button className="gx-btn-sm" onClick={() => setAlertFilters({ severity: "", search: "" })}>Clear</button>
+              </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="gx-tbl">
                   <thead><tr>
                     <th>Time</th><th>Rule</th><th>Severity</th><th>Host</th><th>Agent ID</th>
                   </tr></thead>
                   <tbody>
-                    {alertsPaged.length === 0 ? <tr><td colSpan={5}><div className="gx-empty">Connect to manager to see live data</div></td></tr> :
+                    {alertsPaged.length === 0 ? <tr><td colSpan={5}><div className="gx-empty">No alerts match filters</div></td></tr> :
                       alertsPaged.map((a, i) => (
                         <tr key={i}>
                           <td>{fmtDateTime(a.timestamp)}</td>
@@ -766,10 +791,12 @@ export default function EndguardX() {
                 </table>
               </div>
               <div className="gx-pager">
-                <span className="info">{alerts.length} alerts total</span>
+                <span className="info">{alertsFiltered.length} of {alerts.length} alerts</span>
+                <button disabled={alertsPage === 1} onClick={() => setAlertsPage(1)}>« First</button>
                 <button disabled={alertsPage === 1} onClick={() => setAlertsPage(alertsPage - 1)}>← Prev</button>
-                <span>Page {alertsPage} / {Math.max(1, Math.ceil(alerts.length / ALERTS_PER_PAGE))}</span>
-                <button disabled={alertsPage * ALERTS_PER_PAGE >= alerts.length} onClick={() => setAlertsPage(alertsPage + 1)}>Next →</button>
+                <span>Page {alertsPage} / {alertsTotalPages}</span>
+                <button disabled={alertsPage >= alertsTotalPages} onClick={() => setAlertsPage(alertsPage + 1)}>Next →</button>
+                <button disabled={alertsPage >= alertsTotalPages} onClick={() => setAlertsPage(alertsTotalPages)}>Last »</button>
               </div>
             </>
           )}
@@ -778,20 +805,29 @@ export default function EndguardX() {
             <>
               <div className="gx-filter-bar">
                 <button className="gx-btn-sm" onClick={() => void fetchAll()}>Refresh</button>
+                <span className="gx-filter-label">STATUS</span>
+                <select value={agentFilters.status} onChange={(e) => setAgentFilters({ ...agentFilters, status: e.target.value })}>
+                  <option value="">All</option>
+                  <option value="online">Online</option>
+                  <option value="offline">Offline</option>
+                </select>
+                <span className="gx-filter-label">SEARCH</span>
+                <input type="text" value={agentFilters.search}
+                  onChange={(e) => setAgentFilters({ ...agentFilters, search: e.target.value })}
+                  placeholder="host, id, ip, os…" style={{ width: 200 }} />
+                <button className="gx-btn-sm" onClick={() => setAgentFilters({ status: "", search: "" })}>Clear</button>
                 <span className="gx-filter-label">SCAN TARGET</span>
                 <input type="text" value={scanTarget} onChange={(e) => setScanTarget(e.target.value)}
-                  placeholder="https://target-to-scan" style={{ width: 240 }} />
+                  placeholder="https://target-to-scan" style={{ width: 220 }} />
                 <button className="gx-btn-sm" onClick={() => void scanAll()}>SCAN ALL IPS</button>
-                <span className="gx-filter-label" style={{ marginLeft: "auto" }}>
-                  Green = online (last 12 min) | DELETE removes inactive agents
-                </span>
               </div>
               <div className="gx-agent-summary">
                 <span className="on">{onlineAgents.length} online</span>
                 <span className="off">{agents.length - onlineAgents.length} offline</span>
+                <span style={{ marginLeft: "auto" }}>Showing {agentsFiltered.length} of {agents.length}</span>
               </div>
-              {agents.length === 0 ? <div className="gx-empty">Connect to manager to see live data</div> :
-                agents.map((a) => {
+              {agentsFiltered.length === 0 ? <div className="gx-empty">{agents.length === 0 ? "Connect to manager to see live data" : "No agents match filters"}</div> :
+                agentsPaged.map((a) => {
                   const online = onlineAgents.includes(a);
                   return (
                     <div className="gx-agent-row" key={a.agent_id}>
@@ -816,6 +852,16 @@ export default function EndguardX() {
                     </div>
                   );
                 })}
+              {agentsFiltered.length > 0 && (
+                <div className="gx-pager">
+                  <span className="info">{agentsFiltered.length} agents</span>
+                  <button disabled={agentsPage === 1} onClick={() => setAgentsPage(1)}>« First</button>
+                  <button disabled={agentsPage === 1} onClick={() => setAgentsPage(agentsPage - 1)}>← Prev</button>
+                  <span>Page {agentsPage} / {agentsTotalPages}</span>
+                  <button disabled={agentsPage >= agentsTotalPages} onClick={() => setAgentsPage(agentsPage + 1)}>Next →</button>
+                  <button disabled={agentsPage >= agentsTotalPages} onClick={() => setAgentsPage(agentsTotalPages)}>Last »</button>
+                </div>
+              )}
             </>
           )}
         </div>
