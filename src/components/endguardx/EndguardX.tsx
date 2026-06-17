@@ -180,10 +180,14 @@ export default function EndguardX() {
   // alerts
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [alertsPage, setAlertsPage] = useState(1);
+  const [alertFilters, setAlertFilters] = useState({ severity: "", search: "" });
   const ALERTS_PER_PAGE = 25;
 
   // agents
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentFilters, setAgentFilters] = useState({ status: "", search: "" });
+  const [agentsPage, setAgentsPage] = useState(1);
+  const AGENTS_PER_PAGE = 10;
   const [scanTarget, setScanTarget] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     return localStorage.getItem("gx-scan-target") || "";
