@@ -4,10 +4,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
   ScatterChart, Scatter, ZAxis,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
 
-type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap";
-const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap"];
+type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap" | "radar";
+const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap", "radar"];
 
 // ---------- Types ----------
 type Totals = { events: number; violations: number; alerts: number; agents: number };
