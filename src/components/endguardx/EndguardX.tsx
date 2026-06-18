@@ -1117,6 +1117,19 @@ function FlexTimeline({ type, data, axisColor, gridColor, tooltipStyle }: {
       </div>
     );
   }
+  if (type === "radar") {
+    return (
+      <ResponsiveContainer><RadarChart data={data} outerRadius="75%">
+        <PolarGrid stroke={gridColor} />
+        <PolarAngleAxis dataKey="date" tick={{ fontSize: 9, fill: axisColor }} stroke={axisColor} />
+        <PolarRadiusAxis tick={{ fontSize: 9, fill: axisColor }} stroke={axisColor} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+        <Radar name="events" dataKey="events" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.3} />
+        <Radar name="violations" dataKey="violations" stroke="#ff3355" fill="#ff3355" fillOpacity={0.3} />
+      </RadarChart></ResponsiveContainer>
+    );
+  }
   if (type === "pie") {
     const totals = [
       { name: "events", value: data.reduce((s, d) => s + d.events, 0) },
