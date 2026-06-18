@@ -635,7 +635,7 @@ export default function EndguardX() {
             title="Events by module"
             right={
               <>
-                <span>{summary ? `${summary.events_by_module.length} modules` : "--"}</span>
+                <span>{summary ? `${summary.events_by_module.length} modules • ${summary.totals.events.toLocaleString()} total events` : "--"}</span>
                 <ChartTypeSelect value={modulesChart} onChange={setModulesChart} />
               </>
             }
