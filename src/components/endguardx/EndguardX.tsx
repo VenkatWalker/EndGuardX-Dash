@@ -3,7 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
+  ScatterChart, Scatter, ZAxis,
 } from "recharts";
+
+type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap";
+const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap"];
 
 // ---------- Types ----------
 type Totals = { events: number; violations: number; alerts: number; agents: number };
@@ -196,6 +200,13 @@ export default function EndguardX() {
 
   // tab
   const [tab, setTab] = useState<"events" | "alerts" | "agents">("events");
+
+  // chart types per panel
+  const [violationsChart, setViolationsChart] = useState<ChartType>("bar");
+  const [modulesChart, setModulesChart] = useState<ChartType>("pie");
+  const [severityChart, setSeverityChart] = useState<ChartType>("pie");
+  const [topAgentsChart, setTopAgentsChart] = useState<ChartType>("bar");
+  const [timelineChart, setTimelineChart] = useState<ChartType>("line");
 
   // toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -601,79 +612,107 @@ export default function EndguardX() {
                 </select>
               </span>
             }
-            right={rangeData.length ? `${rangeData.reduce((s, r) => s + r.count, 0)} total` : "--"}
+            right={
+              <>
+                <span>{rangeData.length ? `${rangeData.reduce((s, r) => s + r.count, 0)} total` : "--"}</span>
+                <ChartTypeSelect value={violationsChart} onChange={setViolationsChart} />
+              </>
+            }
           >
             <div className="gx-chart-wrap">
-              {rangeData.length === 0 ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><BarChart data={rangeData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid stroke={gridColor} vertical={false} />
-                  <XAxis dataKey="hour" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
-                  <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,51,85,0.08)" }} />
-                  <Bar dataKey="count" fill="#ff3355" fillOpacity={0.55} />
-                </BarChart></ResponsiveContainer>}
+              <FlexChart
+                type={violationsChart}
+                data={rangeData.map((r) => ({ name: r.hour, value: r.count }))}
+                colorFor={() => "#ff3355"}
+                baseColor="#ff3355"
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
 
-          <Panel title="Events by module" right={summary ? `${summary.events_by_module.length} modules` : "--"}>
+          <Panel
+            title="Events by module"
+            right={
+              <>
+                <span>{summary ? `${summary.events_by_module.length} modules` : "--"}</span>
+                <ChartTypeSelect value={modulesChart} onChange={setModulesChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!summary?.events_by_module.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><PieChart>
-                  <Pie data={summary.events_by_module} dataKey="count" nameKey="module"
-                    innerRadius={45} outerRadius={75} stroke="none">
-                    {summary.events_by_module.map((m) => <Cell key={m.module} fill={MOD_COLORS[m.module] || "#00c8ff"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
-                </PieChart></ResponsiveContainer>}
+              <FlexChart
+                type={modulesChart}
+                data={(summary?.events_by_module || []).map((m) => ({ name: m.module, value: m.count }))}
+                colorFor={(n) => MOD_COLORS[n] || "#00c8ff"}
+                baseColor="#00c8ff"
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
         </div>
 
         {/* Row 2: severity + top agents + timeline */}
         <div className="gx-grid3">
-          <Panel title="Alert Severity" right="from DB">
+          <Panel
+            title="Alert Severity"
+            right={
+              <>
+                <span>from DB</span>
+                <ChartTypeSelect value={severityChart} onChange={setSeverityChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!summary?.alerts_by_severity.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><PieChart>
-                  <Pie data={summary.alerts_by_severity} dataKey="count" nameKey="severity"
-                    innerRadius={45} outerRadius={75} stroke="none">
-                    {summary.alerts_by_severity.map((s) => <Cell key={s.severity} fill={SEV_COLORS[s.severity] || "#4a6070"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
-                </PieChart></ResponsiveContainer>}
+              <FlexChart
+                type={severityChart}
+                data={(summary?.alerts_by_severity || []).map((s) => ({ name: s.severity, value: s.count }))}
+                colorFor={(n) => SEV_COLORS[n] || "#4a6070"}
+                baseColor="#ff3355"
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
 
-          <Panel title="Top Agents by Events" right="top 6">
+          <Panel
+            title="Top Agents by Events"
+            right={
+              <>
+                <span>top 6</span>
+                <ChartTypeSelect value={topAgentsChart} onChange={setTopAgentsChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!summary?.top_alerting_agents.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><BarChart data={summary.top_alerting_agents.slice(0, 6)} layout="vertical"
-                  margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                  <CartesianGrid stroke={gridColor} horizontal={false} />
-                  <XAxis type="number" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="hostname" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} width={90} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(0,200,255,0.06)" }} />
-                  <Bar dataKey="violation_count" fill="#00c8ff" fillOpacity={0.7} />
-                </BarChart></ResponsiveContainer>}
+              <FlexChart
+                type={topAgentsChart}
+                data={(summary?.top_alerting_agents || []).slice(0, 6).map((a) => ({ name: a.hostname, value: a.violation_count }))}
+                colorFor={() => "#00c8ff"}
+                baseColor="#00c8ff"
+                horizontal
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
 
-          <Panel title="Events Timeline - 30 Days" right="events vs violations">
+          <Panel
+            title="Events Timeline - 30 Days"
+            right={
+              <>
+                <span>events vs violations</span>
+                <ChartTypeSelect value={timelineChart} onChange={setTimelineChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!timeline.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><LineChart data={timeline} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid stroke={gridColor} vertical={false} />
-                  <XAxis dataKey="date" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
-                  <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="events" stroke="#00c8ff" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="violations" stroke="#ff3355" strokeWidth={2} dot={false} />
-                </LineChart></ResponsiveContainer>}
+              <FlexTimeline
+                type={timelineChart}
+                data={timeline}
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
         </div>
+
 
         {/* Tabs */}
         <div className="gx-panel" style={{ marginBottom: 24 }}>
@@ -902,5 +941,225 @@ function Panel({ title, right, children }: { title: React.ReactNode; right?: Rea
       </div>
       <div className="gx-panel-body">{children}</div>
     </div>
+  );
+}
+
+function ChartTypeSelect({ value, onChange }: { value: ChartType; onChange: (v: ChartType) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as ChartType)}
+      title="Chart type"
+      style={{
+        background: "var(--gx-input-bg)", color: "var(--gx-text)",
+        border: "1px solid var(--gx-border2)", padding: "2px 6px",
+        fontFamily: "var(--gx-font)", fontSize: 10, marginLeft: 8,
+        textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer",
+      }}
+    >
+      {CHART_TYPES.map((t) => (
+        <option key={t} value={t}>{t.toUpperCase()}</option>
+      ))}
+    </select>
+  );
+}
+
+function HeatmapGrid({ data, colorFor }: {
+  data: { name: string; value: number }[];
+  colorFor: (n: string) => string;
+}) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const cols = Math.min(Math.max(2, Math.ceil(Math.sqrt(data.length))), 8);
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 4,
+      padding: 8, height: "100%", overflow: "auto",
+    }}>
+      {data.map((d) => {
+        const intensity = d.value / max;
+        return (
+          <div key={d.name} title={`${d.name}: ${d.value}`}
+            style={{
+              background: colorFor(d.name),
+              opacity: 0.25 + intensity * 0.75,
+              borderRadius: 4, padding: "6px 8px",
+              display: "flex", flexDirection: "column", justifyContent: "space-between",
+              fontFamily: "Share Tech Mono, monospace", fontSize: 10, color: "#fff",
+              minHeight: 48, boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.05)",
+            }}>
+            <span style={{ opacity: 0.95, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>{d.name}</span>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>{d.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FlexChart({ type, data, colorFor, baseColor, horizontal, axisColor, gridColor, tooltipStyle }: {
+  type: ChartType;
+  data: { name: string; value: number }[];
+  colorFor: (n: string) => string;
+  baseColor: string;
+  horizontal?: boolean;
+  axisColor: string; gridColor: string; tooltipStyle: React.CSSProperties;
+}) {
+  if (!data.length) return <div className="gx-empty">No data</div>;
+  if (type === "heatmap") return <HeatmapGrid data={data} colorFor={colorFor} />;
+  if (type === "pie") {
+    return (
+      <ResponsiveContainer><PieChart>
+        <Pie data={data} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} stroke="none">
+          {data.map((d) => <Cell key={d.name} fill={colorFor(d.name)} />)}
+        </Pie>
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+      </PieChart></ResponsiveContainer>
+    );
+  }
+  if (type === "line") {
+    return (
+      <ResponsiveContainer><LineChart data={data} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+        <CartesianGrid stroke={gridColor} vertical={false} />
+        <XAxis dataKey="name" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
+        <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Line type="monotone" dataKey="value" stroke={baseColor} strokeWidth={2} dot={false} />
+      </LineChart></ResponsiveContainer>
+    );
+  }
+  if (type === "scatter") {
+    const scat = data.map((d, i) => ({ ...d, idx: i }));
+    return (
+      <ResponsiveContainer><ScatterChart margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+        <CartesianGrid stroke={gridColor} />
+        <XAxis type="number" dataKey="idx" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
+        <YAxis type="number" dataKey="value" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+        <ZAxis range={[60, 60]} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          cursor={{ strokeDasharray: "3 3" }}
+          formatter={(v: any, _n: any, p: any) => [v, p?.payload?.name]}
+        />
+        <Scatter data={scat} fill={baseColor}>
+          {scat.map((d) => <Cell key={d.name} fill={colorFor(d.name)} />)}
+        </Scatter>
+      </ScatterChart></ResponsiveContainer>
+    );
+  }
+  // bar
+  if (horizontal) {
+    return (
+      <ResponsiveContainer><BarChart data={data} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+        <CartesianGrid stroke={gridColor} horizontal={false} />
+        <XAxis type="number" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+        <YAxis type="category" dataKey="name" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} width={90} />
+        <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(0,200,255,0.06)" }} />
+        <Bar dataKey="value" fill={baseColor} fillOpacity={0.7}>
+          {data.map((d) => <Cell key={d.name} fill={colorFor(d.name)} />)}
+        </Bar>
+      </BarChart></ResponsiveContainer>
+    );
+  }
+  return (
+    <ResponsiveContainer><BarChart data={data} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+      <CartesianGrid stroke={gridColor} vertical={false} />
+      <XAxis dataKey="name" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
+      <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+      <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,51,85,0.08)" }} />
+      <Bar dataKey="value" fill={baseColor} fillOpacity={0.6}>
+        {data.map((d) => <Cell key={d.name} fill={colorFor(d.name)} />)}
+      </Bar>
+    </BarChart></ResponsiveContainer>
+  );
+}
+
+function FlexTimeline({ type, data, axisColor, gridColor, tooltipStyle }: {
+  type: ChartType;
+  data: { date: string; events: number; violations: number }[];
+  axisColor: string; gridColor: string; tooltipStyle: React.CSSProperties;
+}) {
+  if (!data.length) return <div className="gx-empty">No data</div>;
+  if (type === "heatmap") {
+    const max = Math.max(1, ...data.map((d) => d.events));
+    return (
+      <div style={{ padding: 8, height: "100%", overflow: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 3 }}>
+          {data.map((d) => {
+            const t = d.events / max;
+            return (
+              <div key={d.date} title={`${d.date} • events ${d.events} • viol ${d.violations}`}
+                style={{
+                  background: "#00c8ff", opacity: 0.18 + t * 0.82,
+                  borderRadius: 3, minHeight: 38,
+                  display: "flex", flexDirection: "column", justifyContent: "space-between",
+                  padding: "4px 5px", fontFamily: "Share Tech Mono, monospace",
+                  fontSize: 9, color: "#001018",
+                }}>
+                <span>{d.date}</span>
+                <span style={{ fontWeight: 700, color: "#fff" }}>{d.events}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  if (type === "pie") {
+    const totals = [
+      { name: "events", value: data.reduce((s, d) => s + d.events, 0) },
+      { name: "violations", value: data.reduce((s, d) => s + d.violations, 0) },
+    ];
+    const colors: Record<string, string> = { events: "#00c8ff", violations: "#ff3355" };
+    return (
+      <ResponsiveContainer><PieChart>
+        <Pie data={totals} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} stroke="none">
+          {totals.map((d) => <Cell key={d.name} fill={colors[d.name]} />)}
+        </Pie>
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+      </PieChart></ResponsiveContainer>
+    );
+  }
+  if (type === "scatter") {
+    const ev = data.map((d, i) => ({ idx: i, value: d.events, date: d.date }));
+    const vi = data.map((d, i) => ({ idx: i, value: d.violations, date: d.date }));
+    return (
+      <ResponsiveContainer><ScatterChart margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+        <CartesianGrid stroke={gridColor} />
+        <XAxis type="number" dataKey="idx" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
+        <YAxis type="number" dataKey="value" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+        <ZAxis range={[50, 50]} />
+        <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: "3 3" }} />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+        <Scatter name="events" data={ev} fill="#00c8ff" />
+        <Scatter name="violations" data={vi} fill="#ff3355" />
+      </ScatterChart></ResponsiveContainer>
+    );
+  }
+  if (type === "bar") {
+    return (
+      <ResponsiveContainer><BarChart data={data} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+        <CartesianGrid stroke={gridColor} vertical={false} />
+        <XAxis dataKey="date" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
+        <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+        <Bar dataKey="events" fill="#00c8ff" fillOpacity={0.6} />
+        <Bar dataKey="violations" fill="#ff3355" fillOpacity={0.7} />
+      </BarChart></ResponsiveContainer>
+    );
+  }
+  // line (default)
+  return (
+    <ResponsiveContainer><LineChart data={data} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+      <CartesianGrid stroke={gridColor} vertical={false} />
+      <XAxis dataKey="date" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
+      <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
+      <Tooltip contentStyle={tooltipStyle} />
+      <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+      <Line type="monotone" dataKey="events" stroke="#00c8ff" strokeWidth={2} dot={false} />
+      <Line type="monotone" dataKey="violations" stroke="#ff3355" strokeWidth={2} dot={false} />
+    </LineChart></ResponsiveContainer>
   );
 }
