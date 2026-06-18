@@ -612,79 +612,107 @@ export default function EndguardX() {
                 </select>
               </span>
             }
-            right={rangeData.length ? `${rangeData.reduce((s, r) => s + r.count, 0)} total` : "--"}
+            right={
+              <>
+                <span>{rangeData.length ? `${rangeData.reduce((s, r) => s + r.count, 0)} total` : "--"}</span>
+                <ChartTypeSelect value={violationsChart} onChange={setViolationsChart} />
+              </>
+            }
           >
             <div className="gx-chart-wrap">
-              {rangeData.length === 0 ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><BarChart data={rangeData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid stroke={gridColor} vertical={false} />
-                  <XAxis dataKey="hour" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
-                  <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,51,85,0.08)" }} />
-                  <Bar dataKey="count" fill="#ff3355" fillOpacity={0.55} />
-                </BarChart></ResponsiveContainer>}
+              <FlexChart
+                type={violationsChart}
+                data={rangeData.map((r) => ({ name: r.hour, value: r.count }))}
+                colorFor={() => "#ff3355"}
+                baseColor="#ff3355"
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
 
-          <Panel title="Events by module" right={summary ? `${summary.events_by_module.length} modules` : "--"}>
+          <Panel
+            title="Events by module"
+            right={
+              <>
+                <span>{summary ? `${summary.events_by_module.length} modules` : "--"}</span>
+                <ChartTypeSelect value={modulesChart} onChange={setModulesChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!summary?.events_by_module.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><PieChart>
-                  <Pie data={summary.events_by_module} dataKey="count" nameKey="module"
-                    innerRadius={45} outerRadius={75} stroke="none">
-                    {summary.events_by_module.map((m) => <Cell key={m.module} fill={MOD_COLORS[m.module] || "#00c8ff"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
-                </PieChart></ResponsiveContainer>}
+              <FlexChart
+                type={modulesChart}
+                data={(summary?.events_by_module || []).map((m) => ({ name: m.module, value: m.count }))}
+                colorFor={(n) => MOD_COLORS[n] || "#00c8ff"}
+                baseColor="#00c8ff"
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
         </div>
 
         {/* Row 2: severity + top agents + timeline */}
         <div className="gx-grid3">
-          <Panel title="Alert Severity" right="from DB">
+          <Panel
+            title="Alert Severity"
+            right={
+              <>
+                <span>from DB</span>
+                <ChartTypeSelect value={severityChart} onChange={setSeverityChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!summary?.alerts_by_severity.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><PieChart>
-                  <Pie data={summary.alerts_by_severity} dataKey="count" nameKey="severity"
-                    innerRadius={45} outerRadius={75} stroke="none">
-                    {summary.alerts_by_severity.map((s) => <Cell key={s.severity} fill={SEV_COLORS[s.severity] || "#4a6070"} />)}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
-                </PieChart></ResponsiveContainer>}
+              <FlexChart
+                type={severityChart}
+                data={(summary?.alerts_by_severity || []).map((s) => ({ name: s.severity, value: s.count }))}
+                colorFor={(n) => SEV_COLORS[n] || "#4a6070"}
+                baseColor="#ff3355"
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
 
-          <Panel title="Top Agents by Events" right="top 6">
+          <Panel
+            title="Top Agents by Events"
+            right={
+              <>
+                <span>top 6</span>
+                <ChartTypeSelect value={topAgentsChart} onChange={setTopAgentsChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!summary?.top_alerting_agents.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><BarChart data={summary.top_alerting_agents.slice(0, 6)} layout="vertical"
-                  margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                  <CartesianGrid stroke={gridColor} horizontal={false} />
-                  <XAxis type="number" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="hostname" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} width={90} />
-                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(0,200,255,0.06)" }} />
-                  <Bar dataKey="violation_count" fill="#00c8ff" fillOpacity={0.7} />
-                </BarChart></ResponsiveContainer>}
+              <FlexChart
+                type={topAgentsChart}
+                data={(summary?.top_alerting_agents || []).slice(0, 6).map((a) => ({ name: a.hostname, value: a.violation_count }))}
+                colorFor={() => "#00c8ff"}
+                baseColor="#00c8ff"
+                horizontal
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
 
-          <Panel title="Events Timeline - 30 Days" right="events vs violations">
+          <Panel
+            title="Events Timeline - 30 Days"
+            right={
+              <>
+                <span>events vs violations</span>
+                <ChartTypeSelect value={timelineChart} onChange={setTimelineChart} />
+              </>
+            }
+          >
             <div className="gx-chart-wrap">
-              {!timeline.length ? <div className="gx-empty">No data</div> :
-                <ResponsiveContainer><LineChart data={timeline} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid stroke={gridColor} vertical={false} />
-                  <XAxis dataKey="date" stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} />
-                  <YAxis stroke={axisColor} tick={{ fontSize: 10, fill: axisColor }} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="events" stroke="#00c8ff" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="violations" stroke="#ff3355" strokeWidth={2} dot={false} />
-                </LineChart></ResponsiveContainer>}
+              <FlexTimeline
+                type={timelineChart}
+                data={timeline}
+                axisColor={axisColor} gridColor={gridColor} tooltipStyle={tooltipStyle}
+              />
             </div>
           </Panel>
         </div>
+
 
         {/* Tabs */}
         <div className="gx-panel" style={{ marginBottom: 24 }}>
