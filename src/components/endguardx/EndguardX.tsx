@@ -201,6 +201,13 @@ export default function EndguardX() {
   // tab
   const [tab, setTab] = useState<"events" | "alerts" | "agents">("events");
 
+  // chart types per panel
+  const [violationsChart, setViolationsChart] = useState<ChartType>("bar");
+  const [modulesChart, setModulesChart] = useState<ChartType>("pie");
+  const [severityChart, setSeverityChart] = useState<ChartType>("pie");
+  const [topAgentsChart, setTopAgentsChart] = useState<ChartType>("bar");
+  const [timelineChart, setTimelineChart] = useState<ChartType>("line");
+
   // toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
   const pushToast = useCallback((type: Toast["type"], msg: string) => {
