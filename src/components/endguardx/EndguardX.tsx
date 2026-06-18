@@ -4,10 +4,11 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
   ScatterChart, Scatter, ZAxis,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
 
-type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap";
-const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap"];
+type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap" | "radar";
+const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap", "radar"];
 
 // ---------- Types ----------
 type Totals = { events: number; violations: number; alerts: number; agents: number };
@@ -488,8 +489,8 @@ export default function EndguardX() {
 
   // ---------- Chart theme colors ----------
   const isDark = theme === "dark";
-  const axisColor = isDark ? "#4a6070" : "#6b7b8d";
-  const gridColor = isDark ? "rgba(0,200,255,0.06)" : "rgba(0,0,0,0.06)";
+  const axisColor = isDark ? "#9bb0c2" : "#5a6a7c";
+  const gridColor = isDark ? "rgba(0,200,255,0.12)" : "rgba(0,0,0,0.06)";
   const tooltipStyle = {
     backgroundColor: isDark ? "#0d1117" : "#fff",
     border: `1px solid ${isDark ? "rgba(0,200,255,0.2)" : "rgba(0,0,0,0.15)"}`,
@@ -634,7 +635,7 @@ export default function EndguardX() {
             title="Events by module"
             right={
               <>
-                <span>{summary ? `${summary.events_by_module.length} modules` : "--"}</span>
+                <span>{summary ? `${summary.events_by_module.length} modules • ${summary.totals.events.toLocaleString()} total events` : "--"}</span>
                 <ChartTypeSelect value={modulesChart} onChange={setModulesChart} />
               </>
             }
@@ -657,7 +658,7 @@ export default function EndguardX() {
             title="Alert Severity"
             right={
               <>
-                <span>from DB</span>
+                <span>{summary ? `${summary.totals.alerts.toLocaleString()} total alerts` : "--"}</span>
                 <ChartTypeSelect value={severityChart} onChange={setSeverityChart} />
               </>
             }
@@ -1006,6 +1007,17 @@ function FlexChart({ type, data, colorFor, baseColor, horizontal, axisColor, gri
 }) {
   if (!data.length) return <div className="gx-empty">No data</div>;
   if (type === "heatmap") return <HeatmapGrid data={data} colorFor={colorFor} />;
+  if (type === "radar") {
+    return (
+      <ResponsiveContainer><RadarChart data={data} outerRadius="75%">
+        <PolarGrid stroke={gridColor} />
+        <PolarAngleAxis dataKey="name" tick={{ fontSize: 10, fill: axisColor }} stroke={axisColor} />
+        <PolarRadiusAxis tick={{ fontSize: 9, fill: axisColor }} stroke={axisColor} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Radar dataKey="value" stroke={baseColor} fill={baseColor} fillOpacity={0.35} />
+      </RadarChart></ResponsiveContainer>
+    );
+  }
   if (type === "pie") {
     return (
       <ResponsiveContainer><PieChart>
@@ -1103,6 +1115,19 @@ function FlexTimeline({ type, data, axisColor, gridColor, tooltipStyle }: {
           })}
         </div>
       </div>
+    );
+  }
+  if (type === "radar") {
+    return (
+      <ResponsiveContainer><RadarChart data={data} outerRadius="75%">
+        <PolarGrid stroke={gridColor} />
+        <PolarAngleAxis dataKey="date" tick={{ fontSize: 9, fill: axisColor }} stroke={axisColor} />
+        <PolarRadiusAxis tick={{ fontSize: 9, fill: axisColor }} stroke={axisColor} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={{ fontSize: 11, fontFamily: "Share Tech Mono, monospace", color: axisColor }} />
+        <Radar name="events" dataKey="events" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.3} />
+        <Radar name="violations" dataKey="violations" stroke="#ff3355" fill="#ff3355" fillOpacity={0.3} />
+      </RadarChart></ResponsiveContainer>
     );
   }
   if (type === "pie") {
