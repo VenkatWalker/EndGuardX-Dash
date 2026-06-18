@@ -3,7 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
+  ScatterChart, Scatter, ZAxis,
 } from "recharts";
+
+type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap";
+const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap"];
 
 // ---------- Types ----------
 type Totals = { events: number; violations: number; alerts: number; agents: number };
