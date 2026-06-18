@@ -1007,6 +1007,17 @@ function FlexChart({ type, data, colorFor, baseColor, horizontal, axisColor, gri
 }) {
   if (!data.length) return <div className="gx-empty">No data</div>;
   if (type === "heatmap") return <HeatmapGrid data={data} colorFor={colorFor} />;
+  if (type === "radar") {
+    return (
+      <ResponsiveContainer><RadarChart data={data} outerRadius="75%">
+        <PolarGrid stroke={gridColor} />
+        <PolarAngleAxis dataKey="name" tick={{ fontSize: 10, fill: axisColor }} stroke={axisColor} />
+        <PolarRadiusAxis tick={{ fontSize: 9, fill: axisColor }} stroke={axisColor} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Radar dataKey="value" stroke={baseColor} fill={baseColor} fillOpacity={0.35} />
+      </RadarChart></ResponsiveContainer>
+    );
+  }
   if (type === "pie") {
     return (
       <ResponsiveContainer><PieChart>
