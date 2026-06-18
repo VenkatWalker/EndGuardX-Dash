@@ -489,8 +489,8 @@ export default function EndguardX() {
 
   // ---------- Chart theme colors ----------
   const isDark = theme === "dark";
-  const axisColor = isDark ? "#4a6070" : "#6b7b8d";
-  const gridColor = isDark ? "rgba(0,200,255,0.06)" : "rgba(0,0,0,0.06)";
+  const axisColor = isDark ? "#9bb0c2" : "#5a6a7c";
+  const gridColor = isDark ? "rgba(0,200,255,0.12)" : "rgba(0,0,0,0.06)";
   const tooltipStyle = {
     backgroundColor: isDark ? "#0d1117" : "#fff",
     border: `1px solid ${isDark ? "rgba(0,200,255,0.2)" : "rgba(0,0,0,0.15)"}`,
