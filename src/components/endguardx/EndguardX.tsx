@@ -658,7 +658,7 @@ export default function EndguardX() {
             title="Alert Severity"
             right={
               <>
-                <span>from DB</span>
+                <span>{summary ? `${summary.totals.alerts.toLocaleString()} total alerts` : "--"}</span>
                 <ChartTypeSelect value={severityChart} onChange={setSeverityChart} />
               </>
             }
