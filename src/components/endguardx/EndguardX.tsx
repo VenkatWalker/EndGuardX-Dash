@@ -504,7 +504,7 @@ export default function EndguardX() {
 
   return (
     <div className="gx-root">
-      <div className="gx-scanlines" />
+      {/*<div className="gx-scanlines" />*/}
 
       {showLogin && (
         <div className="gx-login-overlay">
@@ -569,7 +569,7 @@ export default function EndguardX() {
             }}>{connStatus.toUpperCase()}</span>
           </div>
 
-          <div className="gx-sync-time">{lastSync}</div>
+          <div className={`gx-sync-time ${connStatus}`}>{lastSync}</div>
 
           {authed && (
             <button className="gx-btn-mini danger" onClick={logout}>LOGOUT</button>
