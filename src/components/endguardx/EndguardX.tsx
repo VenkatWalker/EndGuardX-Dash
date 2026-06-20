@@ -686,36 +686,31 @@ export default function EndguardX() {
         const showDivider = showLocal && (azureP || googleP);
         return (
           <div className="gx-login-overlay">
+            {/* top-right status / clock / theme */}
+            <div style={{
+              position: "absolute", top: 16, right: 20,
+              display: "flex", alignItems: "center", gap: 16,
+              fontFamily: "Share Tech Mono, monospace", fontSize: 11,
+              color: "var(--gx-text)", letterSpacing: "0.1em", zIndex: 1,
+            }}>
+              <span style={{
+                color: providersInfo.reachable ? "var(--gx-green)" : "var(--gx-red)",
+              }}>
+                ● {providersLoading ? "CHECKING..." : providersInfo.reachable ? "MANAGER ONLINE" : "MANAGER OFFLINE"}
+              </span>
+              <span>{nowStr}</span>
+              <span
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                style={{ cursor: "pointer", color: "var(--gx-cyan-text)" }}
+                title="Toggle theme"
+              >
+                ☾ {theme.toUpperCase()}
+              </span>
+            </div>
+
             <form className="gx-login-card" onSubmit={handleLogin}>
               <h2>Endguard<span style={{ color: "var(--gx-green)" }}>X</span></h2>
               <div className="sub">SECURE ACCESS</div>
-
-              {/* status + clock */}
-              <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                fontSize: 11, letterSpacing: "0.15em", margin: "8px 0 12px",
-                color: "var(--gx-fg-dim, #8aa0b4)", fontFamily: "Share Tech Mono, monospace",
-              }}>
-                <span style={{
-                  color: providersInfo.reachable ? "var(--gx-green, #29d398)" : "var(--gx-red, #ff5a6e)",
-                }}>
-                  ● {providersLoading ? "CHECKING..." : providersInfo.reachable ? "MANAGER ONLINE" : "MANAGER OFFLINE"}
-                </span>
-                <span>{nowStr}</span>
-              </div>
-
-              {/* theme toggle */}
-              <div
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                style={{
-                  cursor: "pointer", fontSize: 10, letterSpacing: "0.2em",
-                  textAlign: "right", marginBottom: 10,
-                  color: "var(--gx-cyan, #00c8ff)",
-                }}
-                title="Toggle theme"
-              >
-                ☾ {theme.toUpperCase()} MODE
-              </div>
 
               <label>MANAGER URL</label>
               <input
