@@ -189,12 +189,25 @@ export default function EndguardX() {
   useEffect(() => { try { localStorage.setItem("gx-managers", JSON.stringify(managers)); } catch { /* ignore */ } }, [managers]);
   useEffect(() => { try { localStorage.setItem("gx-last-manager", managerUrl); } catch { /* ignore */ } }, [managerUrl]);
 
-  // auth / connection
-  const [token, setToken] = useState<string>("");
-  const [authed, setAuthed] = useState<boolean>(false);
+  // auth / connection (restore from sessionStorage)
+  const [token, setToken] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem("gx-dash-token") || "";
+  });
+  const [authed, setAuthed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return !!sessionStorage.getItem("gx-dash-token");
+  });
+  const [sessionUser, setSessionUser] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem("gx-dash-user") || "";
+  });
   const [demoMode, setDemoMode] = useState<boolean>(false);
   const [connecting, setConnecting] = useState(false);
-  const [connStatus, setConnStatus] = useState<"offline" | "live" | "demo">("offline");
+  const [connStatus, setConnStatus] = useState<"offline" | "live" | "demo">(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("gx-dash-token")) return "live";
+    return "offline";
+  });
   const [errBanner, setErrBanner] = useState<string>("");
   const [lastSync, setLastSync] = useState<string>("--");
 
