@@ -150,6 +150,7 @@
   --gx-bg:#080b10;--gx-bg2:#0d1117;--gx-bg3:#121820;--gx-bg4:#1a2233;
   --gx-border:rgba(0,200,255,0.10);--gx-border2:rgba(0,200,255,0.20);
   --gx-text:#c8d8e8;--gx-muted:#4a6070;
+  --gx-stat-label-color:#ffffff;
   --gx-scanline-opacity:1;--gx-shadow-glow:rgba(0,200,255,0.05);
   --gx-card-hover-border:rgba(0,200,255,0.25);
   --gx-chart-grid:rgba(0,200,255,0.04);
@@ -164,6 +165,7 @@
   --gx-bg:#f0f2f5;--gx-bg2:#ffffff;--gx-bg3:#f5f7fa;--gx-bg4:#e8ecf0;
   --gx-border:rgba(0,0,0,0.08);--gx-border2:rgba(0,0,0,0.15);
   --gx-text:#1a2233;--gx-muted:#6b7b8d;
+  --gx-stat-label-color:#565f68;
   --gx-scanline-opacity:0;--gx-shadow-glow:rgba(0,0,0,0.04);
   --gx-card-hover-border:rgba(0,0,0,0.15);
   --gx-chart-grid:rgba(0,0,0,0.06);
@@ -184,10 +186,10 @@ html, body, #root { margin:0; padding:0; background:var(--gx-bg, #080b10); min-h
 .gx-topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;background:var(--gx-bg2);border-bottom:1px solid var(--gx-border2);position:sticky;top:0;z-index:100;box-shadow:0 0 30px var(--gx-shadow-glow);flex-wrap:wrap;gap:12px;}
 .gx-logo{display:flex;align-items:center;gap:10px;font-family:var(--gx-font2);font-size:25px;font-weight:700;color:var(--gx-cyan-text);letter-spacing:0.05em;}
 :root[data-gx-theme="dark"] .gx-logo{text-shadow:0 0 20px rgba(0,200,255,0.5);}
-.gx-logo-sub{font-size:12px;color:var(--gx-muted);letter-spacing:0.2em;font-family:var(--gx-font);}
+.gx-logo-sub{font-size:11px;color:var(--gx-muted);letter-spacing:0.15em;font-family:var(--gx-font);}
 .gx-topbar-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .gx-conn-box{display:flex;align-items:center;gap:8px;background:var(--gx-bg3);border:1px solid var(--gx-border);border-radius:4px;padding:6px 10px;}
-.gx-conn-box label{font-size:10px;color:var(--gx-muted);letter-spacing:0.1em;}
+.gx-conn-box label{font-size:10px;color:var(--gx-yellow);letter-spacing:0.1em;}
 .gx-conn-box input{background:transparent;border:none;outline:none;color:var(--gx-cyan-text);font-family:var(--gx-font);font-size:11px;width:200px;}
 .gx-conn-box input::placeholder{color:var(--gx-muted);}
 .gx-conn-box select{background:var(--gx-bg3);border:1px solid var(--gx-border2);outline:none;color:var(--gx-cyan-text);font-family:var(--gx-font);font-size:11px;padding:4px 6px;border-radius:3px;max-width:200px;}
@@ -217,6 +219,9 @@ html, body, #root { margin:0; padding:0; background:var(--gx-bg, #080b10); min-h
 .gx-dot-dead{background:var(--gx-muted);}
 @keyframes gxblink{0%,100%{opacity:1}50%{opacity:0.3}}
 .gx-sync-time{font-size:10px;color:var(--gx-muted);}
+.gx-sync-time.live{color:var(--gx-green);}
+.gx-sync-time.demo{color:var(--gx-yellow);}
+.gx-sync-time.offline{color:var(--gx-red);}
 .gx-theme-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 10px;border-radius:20px;background:var(--gx-toggle-bg);border:1px solid var(--gx-border);user-select:none;}
 .gx-toggle-track{width:32px;height:16px;border-radius:8px;background:var(--gx-bg4);position:relative;}
 .gx-toggle-knob{width:12px;height:12px;border-radius:50%;background:var(--gx-toggle-knob);position:absolute;top:2px;left:2px;transition:transform var(--gx-trans);}
@@ -235,7 +240,7 @@ html, body, #root { margin:0; padding:0; background:var(--gx-bg, #080b10); min-h
 .gx-stat-card.c-red::after{background:linear-gradient(90deg,transparent,var(--gx-red),transparent);}
 .gx-stat-card.c-yellow::after{background:linear-gradient(90deg,transparent,var(--gx-yellow),transparent);}
 .gx-stat-card.c-green::after{background:linear-gradient(90deg,transparent,var(--gx-green),transparent);}
-.gx-stat-label{font-size:10px;color:var(--gx-muted);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;}
+.gx-stat-label{font-size:10px;color:var(--gx-stat-label-color);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:10px;}
 .gx-stat-value{font-family:var(--gx-font2);font-size:38px;font-weight:700;line-height:1;letter-spacing:-0.02em;}
 .c-cyan .gx-stat-value{color:var(--gx-cyan-text);}:root[data-gx-theme="dark"] .c-cyan .gx-stat-value{text-shadow:0 0 20px rgba(0,200,255,0.4);}
 .c-red .gx-stat-value{color:var(--gx-red);}:root[data-gx-theme="dark"] .c-red .gx-stat-value{text-shadow:0 0 20px rgba(255,51,85,0.4);}
