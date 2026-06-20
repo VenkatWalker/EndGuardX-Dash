@@ -6,6 +6,37 @@ import {
   ScatterChart, Scatter, ZAxis,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
+import { PublicClientApplication } from "@azure/msal-browser";
+
+// ---------- SSO provider types ----------
+type SSOProvider = {
+  id: "azure" | "google" | string;
+  label: string;
+  client_id?: string;
+  tenant_id?: string;
+};
+type ProvidersInfo = {
+  local_login: boolean;
+  providers: SSOProvider[];
+  reachable: boolean;
+};
+
+// google identity services loader
+let googleScriptPromise: Promise<void> | null = null;
+function loadGoogleScript(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if ((window as any).google?.accounts?.oauth2) return Promise.resolve();
+  if (googleScriptPromise) return googleScriptPromise;
+  googleScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load Google script"));
+    document.head.appendChild(s);
+  });
+  return googleScriptPromise;
+}
 
 type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap" | "radar";
 const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap", "radar"];
