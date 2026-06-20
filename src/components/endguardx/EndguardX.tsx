@@ -368,6 +368,17 @@ export default function EndguardX() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evFilters.agent_id]);
 
+  // initial fetch when session restored from sessionStorage
+  const bootRef = useRef(false);
+  useEffect(() => {
+    if (bootRef.current) return;
+    if (authed && token && !demoMode) {
+      bootRef.current = true;
+      void fetchAll();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // auto-refresh
   useEffect(() => {
     if (!authed && !demoMode) return;
