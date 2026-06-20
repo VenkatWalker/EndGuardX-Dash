@@ -476,6 +476,7 @@ export default function EndguardX() {
     setLoginErr(""); setSsoBusy("azure");
     try {
       if (!p.client_id || !p.tenant_id) throw new Error("Azure provider misconfigured");
+      const { PublicClientApplication } = await import("@azure/msal-browser");
       const msal = new PublicClientApplication({
         auth: {
           clientId: p.client_id,
