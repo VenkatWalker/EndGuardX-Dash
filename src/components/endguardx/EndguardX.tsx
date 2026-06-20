@@ -668,24 +668,109 @@ export default function EndguardX() {
     <div className="gx-root">
       <div className="gx-scanlines" />
 
-      {showLogin && (
-        <div className="gx-login-overlay">
-          <form className="gx-login-card" onSubmit={handleLogin}>
-            <h2>Endguard<span style={{ color: "var(--gx-green)" }}>X</span></h2>
-            <div className="sub">SECURE ACCESS</div>
-            <label>MANAGER URL</label>
-            <input type="text" value={managerUrl} onChange={(e) => setManagerUrl(e.target.value)}
-              placeholder="https://manager:8443" />
-            <label>USERNAME</label>
-            <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} autoFocus />
-            <label>PASSWORD</label>
-            <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} />
-            <button type="submit" disabled={loggingIn}>{loggingIn ? "SIGNING IN..." : "SIGN IN"}</button>
-            <button type="button" style={{ marginTop: 8 }} onClick={enterDemo}>ENTER DEMO MODE</button>
-            <div className="gx-login-err">{loginErr}</div>
-          </form>
-        </div>
-      )}
+      {showLogin && (() => {
+        const azureP = providersInfo.providers.find((x) => x.id === "azure");
+        const googleP = providersInfo.providers.find((x) => x.id === "google");
+        const showLocal = providersInfo.local_login || !providersInfo.reachable;
+        const showDivider = showLocal && (azureP || googleP);
+        return (
+          <div className="gx-login-overlay">
+            <form className="gx-login-card" onSubmit={handleLogin}>
+              <h2>Endguard<span style={{ color: "var(--gx-green)" }}>X</span></h2>
+              <div className="sub">SECURE ACCESS</div>
+
+              {/* status + clock */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                fontSize: 11, letterSpacing: "0.15em", margin: "8px 0 12px",
+                color: "var(--gx-fg-dim, #8aa0b4)", fontFamily: "Share Tech Mono, monospace",
+              }}>
+                <span style={{
+                  color: providersInfo.reachable ? "var(--gx-green, #29d398)" : "var(--gx-red, #ff5a6e)",
+                }}>
+                  ● {providersLoading ? "CHECKING..." : providersInfo.reachable ? "MANAGER ONLINE" : "MANAGER OFFLINE"}
+                </span>
+                <span>{nowStr}</span>
+              </div>
+
+              {/* theme toggle */}
+              <div
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                style={{
+                  cursor: "pointer", fontSize: 10, letterSpacing: "0.2em",
+                  textAlign: "right", marginBottom: 10,
+                  color: "var(--gx-cyan, #00c8ff)",
+                }}
+                title="Toggle theme"
+              >
+                ☾ {theme.toUpperCase()} MODE
+              </div>
+
+              <label>MANAGER URL</label>
+              <input
+                type="text" value={managerUrl}
+                onChange={(e) => setManagerUrl(e.target.value)}
+                onBlur={() => void fetchProviders()}
+                placeholder="https://manager:8443"
+              />
+
+              {!providersInfo.reachable && (
+                <div style={{
+                  fontSize: 10, color: "var(--gx-amber, #ffb454)", margin: "4px 0 8px",
+                  letterSpacing: "0.1em",
+                }}>
+                  ⚠ MANAGER UNREACHABLE — LOCAL LOGIN ONLY
+                </div>
+              )}
+
+              {showLocal && (
+                <>
+                  <label>USERNAME</label>
+                  <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} autoFocus />
+                  <label>PASSWORD</label>
+                  <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} />
+                  <button type="submit" disabled={loggingIn || !!ssoBusy}>{loggingIn ? "SIGNING IN..." : "SIGN IN"}</button>
+                </>
+              )}
+
+              {showDivider && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, margin: "14px 0 10px",
+                  color: "var(--gx-fg-dim, #6b7b8d)", fontSize: 10, letterSpacing: "0.3em",
+                }}>
+                  <div style={{ flex: 1, height: 1, background: "currentColor", opacity: 0.3 }} />
+                  OR
+                  <div style={{ flex: 1, height: 1, background: "currentColor", opacity: 0.3 }} />
+                </div>
+              )}
+
+              {azureP && (
+                <button
+                  type="button"
+                  onClick={() => handleAzureLogin(azureP)}
+                  disabled={!!ssoBusy || loggingIn}
+                  style={{ marginTop: 6 }}
+                >
+                  {ssoBusy === "azure" ? "OPENING MICROSOFT..." : (azureP.label || "LOGIN WITH MICROSOFT").toUpperCase()}
+                </button>
+              )}
+              {googleP && (
+                <button
+                  type="button"
+                  onClick={() => handleGoogleLogin(googleP)}
+                  disabled={!!ssoBusy || loggingIn}
+                  style={{ marginTop: 6 }}
+                >
+                  {ssoBusy === "google" ? "OPENING GOOGLE..." : (googleP.label || "LOGIN WITH GOOGLE").toUpperCase()}
+                </button>
+              )}
+
+              <button type="button" style={{ marginTop: 8 }} onClick={enterDemo}>ENTER DEMO MODE</button>
+              <div className="gx-login-err">{loginErr}</div>
+            </form>
+          </div>
+        );
+      })()}
 
       {/* Topbar */}
       <header className="gx-topbar">
