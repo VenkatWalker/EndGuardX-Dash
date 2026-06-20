@@ -6,6 +6,37 @@ import {
   ScatterChart, Scatter, ZAxis,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
+import { PublicClientApplication } from "@azure/msal-browser";
+
+// ---------- SSO provider types ----------
+type SSOProvider = {
+  id: "azure" | "google" | string;
+  label: string;
+  client_id?: string;
+  tenant_id?: string;
+};
+type ProvidersInfo = {
+  local_login: boolean;
+  providers: SSOProvider[];
+  reachable: boolean;
+};
+
+// google identity services loader
+let googleScriptPromise: Promise<void> | null = null;
+function loadGoogleScript(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if ((window as any).google?.accounts?.oauth2) return Promise.resolve();
+  if (googleScriptPromise) return googleScriptPromise;
+  googleScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("Failed to load Google script"));
+    document.head.appendChild(s);
+  });
+  return googleScriptPromise;
+}
 
 type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap" | "radar";
 const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap", "radar"];
@@ -158,12 +189,25 @@ export default function EndguardX() {
   useEffect(() => { try { localStorage.setItem("gx-managers", JSON.stringify(managers)); } catch { /* ignore */ } }, [managers]);
   useEffect(() => { try { localStorage.setItem("gx-last-manager", managerUrl); } catch { /* ignore */ } }, [managerUrl]);
 
-  // auth / connection
-  const [token, setToken] = useState<string>("");
-  const [authed, setAuthed] = useState<boolean>(false);
+  // auth / connection (restore from sessionStorage)
+  const [token, setToken] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem("gx-dash-token") || "";
+  });
+  const [authed, setAuthed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return !!sessionStorage.getItem("gx-dash-token");
+  });
+  const [sessionUser, setSessionUser] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return sessionStorage.getItem("gx-dash-user") || "";
+  });
   const [demoMode, setDemoMode] = useState<boolean>(false);
   const [connecting, setConnecting] = useState(false);
-  const [connStatus, setConnStatus] = useState<"offline" | "live" | "demo">("offline");
+  const [connStatus, setConnStatus] = useState<"offline" | "live" | "demo">(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("gx-dash-token")) return "live";
+    return "offline";
+  });
   const [errBanner, setErrBanner] = useState<string>("");
   const [lastSync, setLastSync] = useState<string>("--");
 
@@ -324,6 +368,17 @@ export default function EndguardX() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evFilters.agent_id]);
 
+  // initial fetch when session restored from sessionStorage
+  const bootRef = useRef(false);
+  useEffect(() => {
+    if (bootRef.current) return;
+    if (authed && token && !demoMode) {
+      bootRef.current = true;
+      void fetchAll();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // auto-refresh
   useEffect(() => {
     if (!authed && !demoMode) return;
@@ -345,6 +400,54 @@ export default function EndguardX() {
   const [loginPass, setLoginPass] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState<string>("");
+
+  // providers info (fetched when login screen is shown)
+  const [providersInfo, setProvidersInfo] = useState<ProvidersInfo>({
+    local_login: true, providers: [], reachable: true,
+  });
+  const [providersLoading, setProvidersLoading] = useState(false);
+
+  // clock on login screen
+  const [nowStr, setNowStr] = useState<string>(() => new Date().toLocaleString());
+  useEffect(() => {
+    const id = setInterval(() => setNowStr(new Date().toLocaleString()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fetchProviders = useCallback(async () => {
+    if (!managerUrl) return;
+    setProvidersLoading(true);
+    try {
+      const res = await fetch(`${managerUrl}/api/v1/auth/providers`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setProvidersInfo({
+        local_login: data?.local_login !== false,
+        providers: Array.isArray(data?.providers) ? data.providers : [],
+        reachable: true,
+      });
+    } catch {
+      setProvidersInfo({ local_login: true, providers: [], reachable: false });
+    } finally {
+      setProvidersLoading(false);
+    }
+  }, [managerUrl]);
+
+  // fetch providers whenever login screen is visible / manager url changes
+  useEffect(() => {
+    if (authed) return;
+    void fetchProviders();
+  }, [authed, fetchProviders]);
+
+  // persist session helper
+  const persistSession = useCallback((tok: string, user: string) => {
+    try {
+      sessionStorage.setItem("gx-dash-token", tok);
+      sessionStorage.setItem("gx-dash-manager", managerUrl);
+      sessionStorage.setItem("gx-dash-user", user || "");
+    } catch { /* ignore */ }
+  }, [managerUrl]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -358,6 +461,8 @@ export default function EndguardX() {
       if (!res.ok) { setLoginErr(`Login failed (HTTP ${res.status})`); return; }
       const data = await res.json();
       setToken(data.token || "");
+      setSessionUser(data.username || loginUser);
+      persistSession(data.token || "", data.username || loginUser);
       setAuthed(true);
       setDemoMode(false);
       setConnStatus("live");
@@ -365,6 +470,69 @@ export default function EndguardX() {
     } catch {
       setLoginErr("Cannot reach manager. Check URL.");
     } finally { setLoggingIn(false); }
+  };
+
+  const handleAzureLogin = async (p: SSOProvider) => {
+    setLoginErr(""); setSsoBusy("azure");
+    try {
+      if (!p.client_id || !p.tenant_id) throw new Error("Azure provider misconfigured");
+      const msal = new PublicClientApplication({
+        auth: {
+          clientId: p.client_id,
+          authority: `https://login.microsoftonline.com/${p.tenant_id}`,
+          redirectUri: window.location.origin,
+        },
+      });
+      await msal.initialize();
+      const result = await msal.loginPopup({ scopes: ["openid", "profile", "email"] });
+      const accessToken = result.accessToken || (result as any).idToken;
+      const res = await fetch(`${managerUrl}/api/v1/auth/sso/verify`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "azure", access_token: accessToken }),
+      });
+      if (!res.ok) { setLoginErr(`SSO failed (HTTP ${res.status})`); return; }
+      const data = await res.json();
+      setToken(data.token || "");
+      setSessionUser(data.username || "");
+      persistSession(data.token || "", data.username || "");
+      setAuthed(true); setDemoMode(false); setConnStatus("live");
+      setTimeout(() => void fetchAll(), 0);
+    } catch (err: any) {
+      setLoginErr(err?.message || "Microsoft sign-in failed");
+    } finally { setSsoBusy(""); }
+  };
+
+  const handleGoogleLogin = async (p: SSOProvider) => {
+    setLoginErr(""); setSsoBusy("google");
+    try {
+      if (!p.client_id) throw new Error("Google provider misconfigured");
+      await loadGoogleScript();
+      const google = (window as any).google;
+      const accessToken: string = await new Promise((resolve, reject) => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: p.client_id,
+          scope: "openid email profile",
+          callback: (resp: any) => {
+            if (resp?.error) reject(new Error(resp.error));
+            else resolve(resp.access_token);
+          },
+        });
+        client.requestAccessToken();
+      });
+      const res = await fetch(`${managerUrl}/api/v1/auth/sso/verify`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "google", access_token: accessToken }),
+      });
+      if (!res.ok) { setLoginErr(`SSO failed (HTTP ${res.status})`); return; }
+      const data = await res.json();
+      setToken(data.token || "");
+      setSessionUser(data.username || "");
+      persistSession(data.token || "", data.username || "");
+      setAuthed(true); setDemoMode(false); setConnStatus("live");
+      setTimeout(() => void fetchAll(), 0);
+    } catch (err: any) {
+      setLoginErr(err?.message || "Google sign-in failed");
+    } finally { setSsoBusy(""); }
   };
 
   const enterDemo = () => {
@@ -379,8 +547,13 @@ export default function EndguardX() {
   };
 
   const logout = () => {
-    setAuthed(false); setToken(""); setDemoMode(false); setConnStatus("offline");
+    setAuthed(false); setToken(""); setSessionUser(""); setDemoMode(false); setConnStatus("offline");
     setSummary(null); setEvents([]); setAlerts([]); setAgents([]); setLastSync("--");
+    try {
+      sessionStorage.removeItem("gx-dash-token");
+      sessionStorage.removeItem("gx-dash-manager");
+      sessionStorage.removeItem("gx-dash-user");
+    } catch { /* ignore */ }
   };
 
   // ---------- Manager helpers ----------
@@ -506,24 +679,109 @@ export default function EndguardX() {
     <div className="gx-root">
       <div className="gx-scanlines" />
 
-      {showLogin && (
-        <div className="gx-login-overlay">
-          <form className="gx-login-card" onSubmit={handleLogin}>
-            <h2>Endguard<span style={{ color: "var(--gx-green)" }}>X</span></h2>
-            <div className="sub">SECURE ACCESS</div>
-            <label>MANAGER URL</label>
-            <input type="text" value={managerUrl} onChange={(e) => setManagerUrl(e.target.value)}
-              placeholder="https://manager:8443" />
-            <label>USERNAME</label>
-            <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} autoFocus />
-            <label>PASSWORD</label>
-            <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} />
-            <button type="submit" disabled={loggingIn}>{loggingIn ? "SIGNING IN..." : "SIGN IN"}</button>
-            <button type="button" style={{ marginTop: 8 }} onClick={enterDemo}>ENTER DEMO MODE</button>
-            <div className="gx-login-err">{loginErr}</div>
-          </form>
-        </div>
-      )}
+      {showLogin && (() => {
+        const azureP = providersInfo.providers.find((x) => x.id === "azure");
+        const googleP = providersInfo.providers.find((x) => x.id === "google");
+        const showLocal = providersInfo.local_login || !providersInfo.reachable;
+        const showDivider = showLocal && (azureP || googleP);
+        return (
+          <div className="gx-login-overlay">
+            <form className="gx-login-card" onSubmit={handleLogin}>
+              <h2>Endguard<span style={{ color: "var(--gx-green)" }}>X</span></h2>
+              <div className="sub">SECURE ACCESS</div>
+
+              {/* status + clock */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                fontSize: 11, letterSpacing: "0.15em", margin: "8px 0 12px",
+                color: "var(--gx-fg-dim, #8aa0b4)", fontFamily: "Share Tech Mono, monospace",
+              }}>
+                <span style={{
+                  color: providersInfo.reachable ? "var(--gx-green, #29d398)" : "var(--gx-red, #ff5a6e)",
+                }}>
+                  ● {providersLoading ? "CHECKING..." : providersInfo.reachable ? "MANAGER ONLINE" : "MANAGER OFFLINE"}
+                </span>
+                <span>{nowStr}</span>
+              </div>
+
+              {/* theme toggle */}
+              <div
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                style={{
+                  cursor: "pointer", fontSize: 10, letterSpacing: "0.2em",
+                  textAlign: "right", marginBottom: 10,
+                  color: "var(--gx-cyan, #00c8ff)",
+                }}
+                title="Toggle theme"
+              >
+                ☾ {theme.toUpperCase()} MODE
+              </div>
+
+              <label>MANAGER URL</label>
+              <input
+                type="text" value={managerUrl}
+                onChange={(e) => setManagerUrl(e.target.value)}
+                onBlur={() => void fetchProviders()}
+                placeholder="https://manager:8443"
+              />
+
+              {!providersInfo.reachable && (
+                <div style={{
+                  fontSize: 10, color: "var(--gx-amber, #ffb454)", margin: "4px 0 8px",
+                  letterSpacing: "0.1em",
+                }}>
+                  ⚠ MANAGER UNREACHABLE — LOCAL LOGIN ONLY
+                </div>
+              )}
+
+              {showLocal && (
+                <>
+                  <label>USERNAME</label>
+                  <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} autoFocus />
+                  <label>PASSWORD</label>
+                  <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} />
+                  <button type="submit" disabled={loggingIn || !!ssoBusy}>{loggingIn ? "SIGNING IN..." : "SIGN IN"}</button>
+                </>
+              )}
+
+              {showDivider && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8, margin: "14px 0 10px",
+                  color: "var(--gx-fg-dim, #6b7b8d)", fontSize: 10, letterSpacing: "0.3em",
+                }}>
+                  <div style={{ flex: 1, height: 1, background: "currentColor", opacity: 0.3 }} />
+                  OR
+                  <div style={{ flex: 1, height: 1, background: "currentColor", opacity: 0.3 }} />
+                </div>
+              )}
+
+              {azureP && (
+                <button
+                  type="button"
+                  onClick={() => handleAzureLogin(azureP)}
+                  disabled={!!ssoBusy || loggingIn}
+                  style={{ marginTop: 6 }}
+                >
+                  {ssoBusy === "azure" ? "OPENING MICROSOFT..." : (azureP.label || "LOGIN WITH MICROSOFT").toUpperCase()}
+                </button>
+              )}
+              {googleP && (
+                <button
+                  type="button"
+                  onClick={() => handleGoogleLogin(googleP)}
+                  disabled={!!ssoBusy || loggingIn}
+                  style={{ marginTop: 6 }}
+                >
+                  {ssoBusy === "google" ? "OPENING GOOGLE..." : (googleP.label || "LOGIN WITH GOOGLE").toUpperCase()}
+                </button>
+              )}
+
+              <button type="button" style={{ marginTop: 8 }} onClick={enterDemo}>ENTER DEMO MODE</button>
+              <div className="gx-login-err">{loginErr}</div>
+            </form>
+          </div>
+        );
+      })()}
 
       {/* Topbar */}
       <header className="gx-topbar">
