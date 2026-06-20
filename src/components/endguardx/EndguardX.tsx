@@ -389,6 +389,54 @@ export default function EndguardX() {
   const [loginPass, setLoginPass] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState<string>("");
+
+  // providers info (fetched when login screen is shown)
+  const [providersInfo, setProvidersInfo] = useState<ProvidersInfo>({
+    local_login: true, providers: [], reachable: true,
+  });
+  const [providersLoading, setProvidersLoading] = useState(false);
+
+  // clock on login screen
+  const [nowStr, setNowStr] = useState<string>(() => new Date().toLocaleString());
+  useEffect(() => {
+    const id = setInterval(() => setNowStr(new Date().toLocaleString()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const fetchProviders = useCallback(async () => {
+    if (!managerUrl) return;
+    setProvidersLoading(true);
+    try {
+      const res = await fetch(`${managerUrl}/api/v1/auth/providers`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setProvidersInfo({
+        local_login: data?.local_login !== false,
+        providers: Array.isArray(data?.providers) ? data.providers : [],
+        reachable: true,
+      });
+    } catch {
+      setProvidersInfo({ local_login: true, providers: [], reachable: false });
+    } finally {
+      setProvidersLoading(false);
+    }
+  }, [managerUrl]);
+
+  // fetch providers whenever login screen is visible / manager url changes
+  useEffect(() => {
+    if (authed) return;
+    void fetchProviders();
+  }, [authed, fetchProviders]);
+
+  // persist session helper
+  const persistSession = useCallback((tok: string, user: string) => {
+    try {
+      sessionStorage.setItem("gx-dash-token", tok);
+      sessionStorage.setItem("gx-dash-manager", managerUrl);
+      sessionStorage.setItem("gx-dash-user", user || "");
+    } catch { /* ignore */ }
+  }, [managerUrl]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -402,6 +450,8 @@ export default function EndguardX() {
       if (!res.ok) { setLoginErr(`Login failed (HTTP ${res.status})`); return; }
       const data = await res.json();
       setToken(data.token || "");
+      setSessionUser(data.username || loginUser);
+      persistSession(data.token || "", data.username || loginUser);
       setAuthed(true);
       setDemoMode(false);
       setConnStatus("live");
@@ -409,6 +459,69 @@ export default function EndguardX() {
     } catch {
       setLoginErr("Cannot reach manager. Check URL.");
     } finally { setLoggingIn(false); }
+  };
+
+  const handleAzureLogin = async (p: SSOProvider) => {
+    setLoginErr(""); setSsoBusy("azure");
+    try {
+      if (!p.client_id || !p.tenant_id) throw new Error("Azure provider misconfigured");
+      const msal = new PublicClientApplication({
+        auth: {
+          clientId: p.client_id,
+          authority: `https://login.microsoftonline.com/${p.tenant_id}`,
+          redirectUri: window.location.origin,
+        },
+      });
+      await msal.initialize();
+      const result = await msal.loginPopup({ scopes: ["openid", "profile", "email"] });
+      const accessToken = result.accessToken || (result as any).idToken;
+      const res = await fetch(`${managerUrl}/api/v1/auth/sso/verify`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "azure", access_token: accessToken }),
+      });
+      if (!res.ok) { setLoginErr(`SSO failed (HTTP ${res.status})`); return; }
+      const data = await res.json();
+      setToken(data.token || "");
+      setSessionUser(data.username || "");
+      persistSession(data.token || "", data.username || "");
+      setAuthed(true); setDemoMode(false); setConnStatus("live");
+      setTimeout(() => void fetchAll(), 0);
+    } catch (err: any) {
+      setLoginErr(err?.message || "Microsoft sign-in failed");
+    } finally { setSsoBusy(""); }
+  };
+
+  const handleGoogleLogin = async (p: SSOProvider) => {
+    setLoginErr(""); setSsoBusy("google");
+    try {
+      if (!p.client_id) throw new Error("Google provider misconfigured");
+      await loadGoogleScript();
+      const google = (window as any).google;
+      const accessToken: string = await new Promise((resolve, reject) => {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: p.client_id,
+          scope: "openid email profile",
+          callback: (resp: any) => {
+            if (resp?.error) reject(new Error(resp.error));
+            else resolve(resp.access_token);
+          },
+        });
+        client.requestAccessToken();
+      });
+      const res = await fetch(`${managerUrl}/api/v1/auth/sso/verify`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "google", access_token: accessToken }),
+      });
+      if (!res.ok) { setLoginErr(`SSO failed (HTTP ${res.status})`); return; }
+      const data = await res.json();
+      setToken(data.token || "");
+      setSessionUser(data.username || "");
+      persistSession(data.token || "", data.username || "");
+      setAuthed(true); setDemoMode(false); setConnStatus("live");
+      setTimeout(() => void fetchAll(), 0);
+    } catch (err: any) {
+      setLoginErr(err?.message || "Google sign-in failed");
+    } finally { setSsoBusy(""); }
   };
 
   const enterDemo = () => {
@@ -423,8 +536,13 @@ export default function EndguardX() {
   };
 
   const logout = () => {
-    setAuthed(false); setToken(""); setDemoMode(false); setConnStatus("offline");
+    setAuthed(false); setToken(""); setSessionUser(""); setDemoMode(false); setConnStatus("offline");
     setSummary(null); setEvents([]); setAlerts([]); setAgents([]); setLastSync("--");
+    try {
+      sessionStorage.removeItem("gx-dash-token");
+      sessionStorage.removeItem("gx-dash-manager");
+      sessionStorage.removeItem("gx-dash-user");
+    } catch { /* ignore */ }
   };
 
   // ---------- Manager helpers ----------
