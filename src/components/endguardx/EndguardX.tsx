@@ -690,12 +690,12 @@ export default function EndguardX() {
         return (
           <div className="gx-login-overlay">
             {/* Animated threads background */}
-            <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", opacity: theme === "dark" ? 0.7 : 0.55 }}>
+            <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", opacity: theme === "dark" ? 0.85 : 0.75 }}>
               <Threads
-                color={theme === "dark" ? [0, 0.78, 1] : [0, 0.44, 0.67]}
-                amplitude={1.2}
-                distance={0.2}
-                enableMouseInteraction={false}
+                color={theme === "dark" ? [0, 0.85, 1] : [0.05, 0.35, 0.55]}
+                amplitude={1.6}
+                distance={0.3}
+                enableMouseInteraction={true}
               />
             </div>
             {/* top-right status / clock / theme */}
