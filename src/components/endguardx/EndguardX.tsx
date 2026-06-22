@@ -249,7 +249,7 @@ export default function EndguardX() {
   // chart types per panel
   const [violationsChart, setViolationsChart] = useState<ChartType>("bar");
   const [modulesChart, setModulesChart] = useState<ChartType>("pie");
-  const [severityChart, setSeverityChart] = useState<ChartType>("pie");
+  const [severityChart, setSeverityChart] = useState<ChartType>("heatmap");
   const [topAgentsChart, setTopAgentsChart] = useState<ChartType>("bar");
   const [timelineChart, setTimelineChart] = useState<ChartType>("line");
 
