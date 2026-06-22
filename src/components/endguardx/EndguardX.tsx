@@ -7,6 +7,8 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
 import { PublicClientApplication } from "@azure/msal-browser";
+// @ts-ignore - jsx component
+import Threads from "./Threads.jsx";
 
 // ---------- SSO provider types ----------
 type SSOProvider = {
@@ -687,6 +689,15 @@ export default function EndguardX() {
         const showDivider = showLocal && (azureP || googleP);
         return (
           <div className="gx-login-overlay">
+            {/* Animated threads background */}
+            <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", opacity: theme === "dark" ? 0.7 : 0.55 }}>
+              <Threads
+                color={theme === "dark" ? [0, 0.78, 1] : [0, 0.44, 0.67]}
+                amplitude={1.2}
+                distance={0.2}
+                enableMouseInteraction={false}
+              />
+            </div>
             {/* top-right status / clock / theme */}
             <div style={{
               position: "absolute", top: 16, right: 20,
