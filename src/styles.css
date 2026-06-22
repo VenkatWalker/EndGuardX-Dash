@@ -198,7 +198,7 @@ html, body, #root { margin:0; padding:0; background:var(--gx-bg, #080b10); min-h
 .gx-btn-mini.danger{color:var(--gx-red);border-color:rgba(255,51,85,0.3);}
 .gx-btn-mini.danger:hover{background:rgba(255,51,85,0.08);}
 .gx-login-overlay{position:fixed;inset:0;background:var(--gx-bg);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;}
-.gx-login-card{background:var(--gx-bg2);border:1px solid var(--gx-border2);border-radius:4px;padding:32px;width:340px;max-width:100%;box-shadow:0 0 60px var(--gx-shadow-glow);}
+.gx-login-card{position:relative;z-index:1;background:var(--gx-bg2);border:1px solid var(--gx-border2);border-radius:4px;padding:32px;width:340px;max-width:100%;box-shadow:0 0 60px var(--gx-shadow-glow);}
 .gx-login-card h2{font-family:var(--gx-font2);color:var(--gx-cyan-text);font-size:20px;letter-spacing:0.2em;margin-bottom:4px;}
 .gx-login-card .sub{color:var(--gx-muted);font-size:11px;letter-spacing:0.15em;margin-bottom:20px;}
 .gx-login-card label{display:block;font-size:10px;color:var(--gx-muted);letter-spacing:0.15em;margin:12px 0 4px;}
