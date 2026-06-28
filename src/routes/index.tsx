@@ -1,15 +1,23 @@
-import { createFileRoute } from "@tanstack/react-router";
-import EndguardX from "@/components/endguardx/EndguardX";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useAuthContext } from "@/context/AuthContext";
+
+function IndexComponent() {
+  const navigate = useNavigate();
+  const { isAuthenticated, token } = useAuthContext();
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      navigate({ to: "/dashboard", replace: true });
+    } else {
+      navigate({ to: "/login", replace: true });
+    }
+  }, [isAuthenticated, token, navigate]);
+
+  return null;
+}
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "EndguardX - Endpoint Control Platform" },
-      { name: "description", content: "EndguardX endpoint control platform — monitor agents, events, alerts and policy violations from a single dashboard." },
-      { property: "og:title", content: "EndguardX - Endpoint Control Platform" },
-      { property: "og:description", content: "Monitor endpoint agents, events, alerts and policy violations in real time." },
-    ],
-  }),
-  component: EndguardX,
+  component: IndexComponent,
   ssr: false,
 });

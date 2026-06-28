@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line,
@@ -8,42 +9,17 @@ import {
 } from "recharts";
 
 // @ts-ignore - jsx component
-import Threads from "./Threads.jsx";
+import Threads from "@/components/endguardx/Threads.jsx";
+import { useAuthContext } from "@/context/AuthContext";
 
-// ---------- SSO provider types ----------
+// Types
 type SSOProvider = {
   id: "azure" | "google" | string;
   label: string;
   client_id?: string;
   tenant_id?: string;
 };
-type ProvidersInfo = {
-  local_login: boolean;
-  providers: SSOProvider[];
-  reachable: boolean;
-};
 
-// google identity services loader
-let googleScriptPromise: Promise<void> | null = null;
-function loadGoogleScript(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if ((window as any).google?.accounts?.id) return Promise.resolve();
-  if (googleScriptPromise) return googleScriptPromise;
-  googleScriptPromise = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = "https://accounts.google.com/gsi/client";
-    s.async = true; s.defer = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load Google script"));
-    document.head.appendChild(s);
-  });
-  return googleScriptPromise;
-}
-
-type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap" | "radar";
-const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap", "radar"];
-
-// ---------- Types ----------
 type Totals = { events: number; violations: number; alerts: number; agents: number };
 type Summary = {
   totals: Totals;
@@ -64,7 +40,11 @@ type Agent = {
   agent_id: string; hostname: string; os_type: string; last_seen: string;
   event_count: number; ip_address?: string;
 };
+type ChartType = "bar" | "pie" | "line" | "scatter" | "heatmap" | "radar";
+type Toast = { id: number; type: "ok" | "err"; msg: string };
 
+// Constants
+const CHART_TYPES: ChartType[] = ["bar", "pie", "line", "scatter", "heatmap", "radar"];
 const MODULES = ["usb_control", "dlp_monitor", "secure_access", "storage_control", "policy_engine"];
 const MOD_COLORS: Record<string, string> = {
   usb_control: "#00c8ff", dlp_monitor: "#9b59ff", storage_control: "#ffcc00",
@@ -73,13 +53,13 @@ const MOD_COLORS: Record<string, string> = {
 const SEV_COLORS: Record<string, string> = {
   CRITICAL: "#ff3355", HIGH: "#ffcc00", MEDIUM: "#00c8ff", LOW: "#4a6070",
 };
-
-// ---------- Demo data ----------
-function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-function pick<T>(arr: T[]) { return arr[rand(0, arr.length - 1)]; }
 const DEMO_HOSTS = ["WIN-DESK-01", "MAC-LAPTOP-04", "LIN-WS-09", "WIN-LAPTOP-12"];
 const DEMO_ACTIONS = ["usb_inserted", "file_copied", "login_attempt", "policy_blocked", "scan_complete", "drive_mounted", "network_block"];
 const DEMO_CONTROLS = ["ISO27001-A.8.3", "ISO27001-A.9.4", "NIST-AC-17", "PCI-DSS-3.4", "HIPAA-164.312"];
+
+// Demo data generators
+function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick<T>(arr: T[]) { return arr[rand(0, arr.length - 1)]; }
 
 function demoSummary(): Summary {
   return {
@@ -94,6 +74,7 @@ function demoSummary(): Summary {
     })),
   };
 }
+
 function demoEvents(limit: number, offset: number): { events: EventRow[]; total: number } {
   const total = 1234;
   const events: EventRow[] = Array.from({ length: limit }, (_, i) => {
@@ -111,6 +92,7 @@ function demoEvents(limit: number, offset: number): { events: EventRow[]; total:
   });
   return { events, total };
 }
+
 function demoAlerts(): AlertRow[] {
   const sevs: AlertRow["severity"][] = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
   return Array.from({ length: 30 }, (_, i) => ({
@@ -121,6 +103,7 @@ function demoAlerts(): AlertRow[] {
     agent_id: `agt-${1000 + rand(0, 3)}`,
   }));
 }
+
 function demoAgents(): Agent[] {
   return DEMO_HOSTS.map((h, i) => ({
     agent_id: `agt-${1000 + i}`,
@@ -131,12 +114,14 @@ function demoAgents(): Agent[] {
     ip_address: `192.168.1.${20 + i}`,
   }));
 }
+
 function demoRange(range: "day" | "week" | "month"): { hour: string; count: number }[] {
   const n = range === "day" ? 24 : range === "week" ? 7 : 30;
   const fmt = (i: number) => range === "day" ? `${String(i).padStart(2, "0")}:00`
     : `${range === "week" ? "D" : ""}${i + 1}`;
   return Array.from({ length: n }, (_, i) => ({ hour: fmt(i), count: rand(0, range === "day" ? 30 : 120) }));
 }
+
 function demoTimeline(): { date: string; events: number; violations: number }[] {
   return Array.from({ length: 30 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (29 - i));
@@ -144,17 +129,19 @@ function demoTimeline(): { date: string; events: number; violations: number }[] 
   });
 }
 
-// ---------- Utils ----------
+// Utilities
 function parseUtc(ts: string): Date {
   if (!ts) return new Date();
   if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(ts)) return new Date(ts);
   return new Date(ts + "Z");
 }
+
 function fmtDateTime(ts: string) {
   const d = parseUtc(ts);
   if (isNaN(+d)) return ts;
   return d.toLocaleString();
 }
+
 function fmtRelative(ts: string) {
   const d = parseUtc(ts); const diff = (Date.now() - +d) / 1000;
   if (diff < 60) return `${Math.floor(diff)}s ago`;
@@ -162,14 +149,22 @@ function fmtRelative(ts: string) {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
+
 function formatNum(n: number) { return n.toLocaleString(); }
 
-// ---------- Toast ----------
-type Toast = { id: number; type: "ok" | "err"; msg: string };
+// Dashboard Component
+function DashboardComponent() {
+  const navigate = useNavigate();
+  const { token, username, managerUrl, logout, isAuthenticated } = useAuthContext();
 
-// ---------- Component ----------
-export default function EndguardX() {
-  // theme
+  // Guard: redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated || !token) {
+      navigate({ to: "/login" });
+    }
+  }, [isAuthenticated, token, navigate]);
+
+  // Theme
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof window === "undefined") return "dark";
     return (localStorage.getItem("gx-theme") as any) || "dark";
@@ -179,48 +174,31 @@ export default function EndguardX() {
     try { localStorage.setItem("gx-theme", theme); } catch { /* ignore */ }
   }, [theme]);
 
-  // managers + url
-  const [managerUrl, setManagerUrl] = useState<string>(() => {
-    if (typeof window === "undefined") return "https://192.168.1.5:8443";
-    return localStorage.getItem("gx-last-manager") || "https://192.168.1.5:8443";
-  });
+  // Managers
   const [managers, setManagers] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(localStorage.getItem("gx-managers") || "[]"); } catch { return []; }
   });
   useEffect(() => { try { localStorage.setItem("gx-managers", JSON.stringify(managers)); } catch { /* ignore */ } }, [managers]);
-  useEffect(() => { try { localStorage.setItem("gx-last-manager", managerUrl); } catch { /* ignore */ } }, [managerUrl]);
 
-  // auth / connection (restore from sessionStorage)
-  const [token, setToken] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return sessionStorage.getItem("gx-dash-token") || "";
-  });
-  const [authed, setAuthed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return !!sessionStorage.getItem("gx-dash-token");
-  });
-  const [sessionUser, setSessionUser] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return sessionStorage.getItem("gx-dash-user") || "";
-  });
+  // Connection state
   const [demoMode, setDemoMode] = useState<boolean>(false);
   const [connecting, setConnecting] = useState(false);
   const [connStatus, setConnStatus] = useState<"offline" | "live" | "demo">(() => {
-    if (typeof window !== "undefined" && sessionStorage.getItem("gx-dash-token")) return "live";
+    if (typeof window !== "undefined" && token) return "live";
     return "offline";
   });
   const [errBanner, setErrBanner] = useState<string>("");
   const [lastSync, setLastSync] = useState<string>("--");
 
-  // data
+  // Data
   const [summary, setSummary] = useState<Summary | null>(null);
   const [prevTotals, setPrevTotals] = useState<Totals | null>(null);
   const [rangeSel, setRangeSel] = useState<"day" | "week" | "month">("day");
   const [rangeData, setRangeData] = useState<{ hour: string; count: number }[]>([]);
   const [timeline, setTimeline] = useState<{ date: string; events: number; violations: number }[]>([]);
 
-  // events tab
+  // Events tab
   const [evFilters, setEvFilters] = useState({ module: "", violation: "", agent_id: "" });
   const [evLimit, setEvLimit] = useState(25);
   const [evOffset, setEvOffset] = useState(0);
@@ -228,13 +206,13 @@ export default function EndguardX() {
   const [eventsTotal, setEventsTotal] = useState(0);
   const [eventsLoading, setEventsLoading] = useState(false);
 
-  // alerts
+  // Alerts
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [alertsPage, setAlertsPage] = useState(1);
   const [alertFilters, setAlertFilters] = useState({ severity: "", search: "" });
   const ALERTS_PER_PAGE = 25;
 
-  // agents
+  // Agents
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentFilters, setAgentFilters] = useState({ status: "", search: "" });
   const [agentsPage, setAgentsPage] = useState(1);
@@ -245,17 +223,17 @@ export default function EndguardX() {
   });
   useEffect(() => { try { localStorage.setItem("gx-scan-target", scanTarget); } catch { /* ignore */ } }, [scanTarget]);
 
-  // tab
+  // Tab
   const [tab, setTab] = useState<"events" | "alerts" | "agents">("events");
 
-  // chart types per panel
+  // Chart types per panel
   const [violationsChart, setViolationsChart] = useState<ChartType>("bar");
   const [modulesChart, setModulesChart] = useState<ChartType>("pie");
   const [severityChart, setSeverityChart] = useState<ChartType>("heatmap");
   const [topAgentsChart, setTopAgentsChart] = useState<ChartType>("bar");
   const [timelineChart, setTimelineChart] = useState<ChartType>("line");
 
-  // toasts
+  // Toasts
   const [toasts, setToasts] = useState<Toast[]>([]);
   const pushToast = useCallback((type: Toast["type"], msg: string) => {
     const id = Date.now() + Math.random();
@@ -263,7 +241,7 @@ export default function EndguardX() {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
   }, []);
 
-  // ---------- API helper ----------
+  // API helper
   const api = useCallback(async (path: string, opts: RequestInit = {}) => {
     const res = await fetch(`${managerUrl}${path}`, {
       ...opts,
@@ -282,7 +260,7 @@ export default function EndguardX() {
     return res.status === 204 ? null : res.json();
   }, [managerUrl, token]);
 
-  // ---------- Fetch all ----------
+  // Fetch all data
   const fetchAll = useCallback(async () => {
     if (demoMode) {
       const s = demoSummary();
@@ -331,7 +309,7 @@ export default function EndguardX() {
     }
   }, [api, demoMode, rangeSel, evLimit, evOffset, evFilters, managerUrl, summary?.totals]);
 
-  // ---------- Fetch events only ----------
+  // Fetch events only
   const fetchEvents = useCallback(async () => {
     if (demoMode) {
       setEventsLoading(true);
@@ -353,280 +331,51 @@ export default function EndguardX() {
     } finally { setEventsLoading(false); }
   }, [api, demoMode, evLimit, evOffset, evFilters, pushToast]);
 
-  // refetch events on filter / page changes
+  // Refetch events on filter/page changes
   const initRef = useRef(false);
   useEffect(() => {
-    if (!authed && !demoMode) return;
+    if (!token && !demoMode) return;
     if (!initRef.current) { initRef.current = true; return; }
     void fetchEvents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evFilters.module, evFilters.violation, evLimit, evOffset, rangeSel]);
 
-  // debounced agent_id filter
+  // Debounced agent_id filter
   useEffect(() => {
-    if (!authed && !demoMode) return;
+    if (!token && !demoMode) return;
     const t = setTimeout(() => { void fetchEvents(); }, 500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evFilters.agent_id]);
 
-  // initial fetch when session restored from sessionStorage
+  // Initial fetch on mount
   const bootRef = useRef(false);
   useEffect(() => {
     if (bootRef.current) return;
-    if (authed && token && !demoMode) {
+    if (token && !demoMode) {
       bootRef.current = true;
       void fetchAll();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ================================================================
-  // MSAL INSTANCE — singleton, created once per provider config
-  // Key fix: use p.client_id and p.tenant_id correctly (not undefined vars)
-  // redirectUri points to /auth-redirect.html with params so that page
-  // can initialize MSAL with the correct clientId and close the popup.
-  // ================================================================
-  const msalInstanceRef = useRef<any>(null);
-
-  const getMsalInstance = useCallback(async (p: SSOProvider) => {
-    if (!msalInstanceRef.current) {
-      const { PublicClientApplication } = await import("@azure/msal-browser");
-      const msal = new PublicClientApplication({
-        auth: {
-          clientId: p.client_id!,                                          // ✅ fixed
-          authority: `https://login.microsoftonline.com/${p.tenant_id!}`,  // ✅ fixed
-          redirectUri: `${window.location.origin}/auth-redirect.html`
-            + `?clientId=${encodeURIComponent(p.client_id!)}`
-            + `&tenantId=${encodeURIComponent(p.tenant_id!)}`,             // ✅ pass via URL params
-        },
-      });
-      await msal.initialize();
-      // Handle any pending redirect result on init (safe no-op if none)
-      await msal.handleRedirectPromise().catch(() => null);
-      msalInstanceRef.current = msal;
-    }
-    return msalInstanceRef.current;
-  }, []);
-
-  // auto-refresh
+  // Auto-refresh
   useEffect(() => {
-    if (!authed && !demoMode) return;
+    if (!token && !demoMode) return;
     const id = setInterval(() => { void fetchAll(); }, 30_000);
     return () => clearInterval(id);
-  }, [authed, demoMode, fetchAll]);
+  }, [token, demoMode, fetchAll]);
 
-  // refetch range when changed
+  // Refetch range when changed
   useEffect(() => {
-    if (!authed && !demoMode) return;
+    if (!token && !demoMode) return;
     if (demoMode) { setRangeData(demoRange(rangeSel)); return; }
     api(`/api/v1/dashboard/violations/range?range=${rangeSel}`)
       .then((r) => setRangeData(Array.isArray(r) ? r : (r?.data || [])))
       .catch(() => { /* ignore */ });
-  }, [rangeSel, authed, demoMode, api]);
+  }, [rangeSel, token, demoMode, api]);
 
-  // ---------- Login state ----------
-  const [loginUser, setLoginUser] = useState("");
-  const [loginPass, setLoginPass] = useState("");
-  const [loginErr, setLoginErr] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
-  const [ssoBusy, setSsoBusy] = useState<string>("");
-
-  const [providersInfo, setProvidersInfo] = useState<ProvidersInfo>({
-    local_login: true, providers: [], reachable: true,
-  });
-  const [providersLoading, setProvidersLoading] = useState(false);
-
-  const [nowStr, setNowStr] = useState<string>(() => new Date().toLocaleString());
-  useEffect(() => {
-    const id = setInterval(() => setNowStr(new Date().toLocaleString()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const fetchProviders = useCallback(async () => {
-    if (!managerUrl) return;
-    setProvidersLoading(true);
-    try {
-      const res = await fetch(`${managerUrl}/api/v1/auth/providers`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setProvidersInfo({
-        local_login: data?.local_login !== false,
-        providers: Array.isArray(data?.providers) ? data.providers : [],
-        reachable: true,
-      });
-    } catch {
-      setProvidersInfo({ local_login: true, providers: [], reachable: false });
-    } finally {
-      setProvidersLoading(false);
-    }
-  }, [managerUrl]);
-
-  useEffect(() => {
-    if (authed) return;
-    void fetchProviders();
-  }, [authed, fetchProviders]);
-
-  const persistSession = useCallback((tok: string, user: string) => {
-    try {
-      sessionStorage.setItem("gx-dash-token", tok);
-      sessionStorage.setItem("gx-dash-manager", managerUrl);
-      sessionStorage.setItem("gx-dash-user", user || "");
-    } catch { /* ignore */ }
-  }, [managerUrl]);
-
-  // ================================================================
-  // LOCAL LOGIN
-  // ================================================================
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginErr(""); setLoggingIn(true);
-    try {
-      const res = await fetch(`${managerUrl}/api/v1/auth/login`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: loginUser, password: loginPass }),
-      });
-      if (res.status === 401) { setLoginErr("Invalid username or password"); return; }
-      if (!res.ok) { setLoginErr(`Login failed (HTTP ${res.status})`); return; }
-      const data = await res.json();
-      setToken(data.token || "");
-      setSessionUser(data.username || loginUser);
-      persistSession(data.token || "", data.username || loginUser);
-      setAuthed(true); setDemoMode(false); setConnStatus("live");
-      setTimeout(() => void fetchAll(), 0);
-    } catch {
-      setLoginErr("Cannot reach manager. Check URL.");
-    } finally { setLoggingIn(false); }
-  };
-
-  // ================================================================
-  // AZURE SSO LOGIN
-  // Flow: loginPopup() → popup opens → Microsoft redirects to
-  // /auth-redirect.html?clientId=...&tenantId=... → that page
-  // initializes MSAL with correct clientId → calls handleRedirectPromise()
-  // → popup closes → loginPopup() promise resolves with result here
-  // → POST idToken to /api/v1/auth/sso/verify → store token → dashboard
-  // ================================================================
-  const handleAzureLogin = async (p: SSOProvider) => {
-    setLoginErr(""); setSsoBusy("azure");
-    try {
-      if (!p.client_id || !p.tenant_id) throw new Error("Azure provider misconfigured — check sso_config.json");
-      const msal = await getMsalInstance(p);
-      const result = await msal.loginPopup({
-        scopes: ["openid", "profile", "email"],
-      });
-      const idToken = result.idToken;
-      if (!idToken) throw new Error("No idToken in MSAL result — check Azure app registration scopes");
-      const res = await fetch(`${managerUrl}/api/v1/auth/sso/verify`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "azure", access_token: idToken }),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        setLoginErr(`SSO failed (HTTP ${res.status}) — ${errText.slice(0, 120)}`);
-        return;
-      }
-      const data = await res.json();
-      setToken(data.token || "");
-      setSessionUser(data.username || "");
-      persistSession(data.token || "", data.username || "");
-      setAuthed(true); setDemoMode(false); setConnStatus("live");
-      setTimeout(() => void fetchAll(), 0);
-    } catch (err: any) {
-      if (err?.errorCode === "interaction_in_progress") {
-        msalInstanceRef.current = null;   // reset stuck instance
-        setLoginErr("Login already in progress — please refresh and try again");
-      } else if (err?.errorCode === "user_cancelled") {
-        setLoginErr("Login cancelled");
-      } else {
-        setLoginErr(err?.message || "Microsoft sign-in failed");
-      }
-    } finally { setSsoBusy(""); }
-  };
-
-  // ================================================================
-  // GOOGLE SSO LOGIN
-  // Uses google.accounts.id.initialize + renderButton (id_token flow)
-  // credential = id_token JWT → POST to /api/v1/auth/sso/verify
-  // ================================================================
-  const handleGoogleCredential = useCallback(async (idToken: string) => {
-    setLoginErr(""); setSsoBusy("google");
-    try {
-      const res = await fetch(`${managerUrl}/api/v1/auth/sso/verify`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: "google", access_token: idToken }),
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        setLoginErr(`Google SSO failed (HTTP ${res.status}) — ${errText.slice(0, 120)}`);
-        return;
-      }
-      const data = await res.json();
-      setToken(data.token || "");
-      setSessionUser(data.username || "");
-      persistSession(data.token || "", data.username || "");
-      setAuthed(true); setDemoMode(false); setConnStatus("live");
-      setTimeout(() => void fetchAll(), 0);
-    } catch (err: any) {
-      setLoginErr(err?.message || "Google sign-in failed");
-    } finally { setSsoBusy(""); }
-  }, [managerUrl, persistSession, fetchAll]);
-
-  // Render Google Sign-In button whenever providers list changes
-  useEffect(() => {
-    if (authed) return;
-    const googleP = providersInfo.providers.find((x) => x.id === "google");
-    if (!googleP || !googleP.client_id) return;
-    let active = true;
-    loadGoogleScript()
-      .then(() => {
-        if (!active) return;
-        const google = (window as any).google;
-        if (!google?.accounts?.id) return;
-        google.accounts.id.initialize({
-          client_id: googleP.client_id,
-          callback: (resp: any) => {
-            if (resp?.credential) void handleGoogleCredential(resp.credential);
-          },
-          auto_select: false,
-          cancel_on_tap_outside: true,
-        });
-        const btnElem = document.getElementById("google-signin-button");
-        if (btnElem) {
-          google.accounts.id.renderButton(btnElem, {
-            theme: theme === "dark" ? "filled_black" : "outline",
-            size: "large",
-            width: btnElem.clientWidth || 280,
-          });
-        }
-      })
-      .catch((err) => console.error("Google Identity Services load failed:", err));
-    return () => { active = false; };
-  }, [providersInfo.providers, authed, theme, handleGoogleCredential]);
-
-  const enterDemo = () => {
-    setDemoMode(true); setAuthed(true); setConnStatus("demo"); setErrBanner("");
-    setTimeout(() => void fetchAll(), 0);
-  };
-
-  const handleConnect = () => {
-    if (!token) { enterDemo(); return; }
-    setConnecting(true);
-    fetchAll().finally(() => setConnecting(false));
-  };
-
-  const logout = () => {
-    setAuthed(false); setToken(""); setSessionUser(""); setDemoMode(false); setConnStatus("offline");
-    setSummary(null); setEvents([]); setAlerts([]); setAgents([]); setLastSync("--");
-    msalInstanceRef.current = null;  // reset MSAL on logout
-    try {
-      sessionStorage.removeItem("gx-dash-token");
-      sessionStorage.removeItem("gx-dash-manager");
-      sessionStorage.removeItem("gx-dash-user");
-    } catch { /* ignore */ }
-  };
-
-  // ---------- Manager helpers ----------
+  // Manager helpers
   const addManager = () => {
     if (!managerUrl) return;
     if (managers.includes(managerUrl)) { pushToast("err", "Already saved"); return; }
@@ -638,7 +387,7 @@ export default function EndguardX() {
     pushToast("ok", "Manager removed");
   };
 
-  // ---------- Trend helper ----------
+  // Trend helper
   const trend = (k: keyof Totals): { dir: "up" | "down" | null; diff: number } => {
     if (!summary || !prevTotals) return { dir: null, diff: 0 };
     const diff = summary.totals[k] - prevTotals[k];
@@ -646,7 +395,7 @@ export default function EndguardX() {
     return { dir: diff > 0 ? "up" : "down", diff: Math.abs(diff) };
   };
 
-  // ---------- Derived ----------
+  // Derived
   const onlineAgents = useMemo(() => {
     const now = Date.now();
     return agents.filter((a) => now - +parseUtc(a.last_seen) < 12 * 60_000);
@@ -685,7 +434,7 @@ export default function EndguardX() {
   useEffect(() => { setAlertsPage(1); }, [alertFilters]);
   useEffect(() => { setAgentsPage(1); }, [agentFilters]);
 
-  // ---------- Scan actions ----------
+  // Scan actions
   const scanAgent = async (a: Agent) => {
     if (!scanTarget) { pushToast("err", "Set SCAN TARGET URL first"); return; }
     if (!a.ip_address) { pushToast("err", "Agent has no IP"); return; }
@@ -699,6 +448,7 @@ export default function EndguardX() {
       pushToast("ok", `Scan dispatched to ${a.hostname}`);
     } catch { pushToast("err", `Scan failed for ${a.hostname}`); }
   };
+
   const scanAll = async () => {
     if (!scanTarget) { pushToast("err", "Set SCAN TARGET URL first"); return; }
     const targets = onlineAgents.filter((a) => a.ip_address);
@@ -717,6 +467,7 @@ export default function EndguardX() {
     }));
     pushToast(fail ? "err" : "ok", `${ok} dispatched, ${fail} failed`);
   };
+
   const deleteAgent = async (a: Agent) => {
     if (!confirm(`Delete agent ${a.agent_id}?`)) return;
     if (demoMode) {
@@ -730,7 +481,7 @@ export default function EndguardX() {
     } catch { pushToast("err", "Delete failed"); }
   };
 
-  // ---------- Chart theme colors ----------
+  // Chart theme colors
   const isDark = theme === "dark";
   const axisColor = isDark ? "#9bb0c2" : "#5a6a7c";
   const gridColor = isDark ? "rgba(0,200,255,0.12)" : "rgba(0,0,0,0.06)";
@@ -742,100 +493,25 @@ export default function EndguardX() {
     fontFamily: "Share Tech Mono, monospace",
   };
 
-  // ---------- Render ----------
-  const showLogin = !authed;
+  // Logout handler
+  const handleLogout = () => {
+    logout();
+    navigate({ to: "/login" });
+  };
+
+  const enterDemo = () => {
+    setDemoMode(true); setConnStatus("demo"); setErrBanner("");
+    setTimeout(() => void fetchAll(), 0);
+  };
+
+  const handleConnect = () => {
+    if (!token) { enterDemo(); return; }
+    setConnecting(true);
+    fetchAll().finally(() => setConnecting(false));
+  };
 
   return (
     <div className="gx-root">
-      {showLogin && (() => {
-        const azureP = providersInfo.providers.find((x) => x.id === "azure");
-        const googleP = providersInfo.providers.find((x) => x.id === "google");
-        const showLocal = providersInfo.local_login || !providersInfo.reachable;
-        const showDivider = showLocal && (azureP || googleP);
-        return (
-          <div className="gx-login-overlay">
-            <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", opacity: theme === "dark" ? 0.85 : 0.75 }}>
-              <Threads
-                color={theme === "dark" ? [0, 0.85, 1] : [0.05, 0.35, 0.55]}
-                amplitude={1.6} distance={0.3} enableMouseInteraction={true}
-              />
-            </div>
-            <div style={{
-              position: "absolute", top: 16, right: 20,
-              display: "flex", alignItems: "center", gap: 16,
-              fontFamily: "Share Tech Mono, monospace", fontSize: 11,
-              color: "var(--gx-text)", letterSpacing: "0.1em", zIndex: 1,
-            }}>
-              <span style={{ color: providersInfo.reachable ? "var(--gx-green)" : "var(--gx-red)" }}>
-                ● {providersLoading ? "CHECKING..." : providersInfo.reachable ? "MANAGER ONLINE" : "MANAGER OFFLINE"}
-              </span>
-              <span>{nowStr}</span>
-              <span onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                style={{ cursor: "pointer", color: "var(--gx-cyan-text)" }} title="Toggle theme">
-                ☾ {theme.toUpperCase()}
-              </span>
-            </div>
-
-            <form className="gx-login-card" onSubmit={handleLogin}>
-              <h2>Endguard<span style={{ color: "var(--gx-green)" }}>X</span></h2>
-              <div className="sub">SECURE ACCESS</div>
-
-              <label>MANAGER URL</label>
-              <input type="text" value={managerUrl}
-                onChange={(e) => setManagerUrl(e.target.value)}
-                onBlur={() => void fetchProviders()}
-                placeholder="https://manager:8443" />
-
-              {!providersInfo.reachable && (
-                <div style={{ fontSize: 10, color: "var(--gx-amber, #ffb454)", margin: "4px 0 8px", letterSpacing: "0.1em" }}>
-                  ⚠ MANAGER UNREACHABLE — LOCAL LOGIN ONLY
-                </div>
-              )}
-
-              {showLocal && (
-                <>
-                  <label>USERNAME</label>
-                  <input type="text" value={loginUser} onChange={(e) => setLoginUser(e.target.value)} autoFocus />
-                  <label>PASSWORD</label>
-                  <input type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} />
-                  <button type="submit" disabled={loggingIn || !!ssoBusy}>
-                    {loggingIn ? "SIGNING IN..." : "SIGN IN"}
-                  </button>
-                </>
-              )}
-
-              {showDivider && (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 8, margin: "14px 0 10px",
-                  color: "var(--gx-fg-dim, #6b7b8d)", fontSize: 10, letterSpacing: "0.3em",
-                }}>
-                  <div style={{ flex: 1, height: 1, background: "currentColor", opacity: 0.3 }} />
-                  OR
-                  <div style={{ flex: 1, height: 1, background: "currentColor", opacity: 0.3 }} />
-                </div>
-              )}
-
-              {azureP && (
-                <button type="button" onClick={() => handleAzureLogin(azureP)}
-                  disabled={!!ssoBusy || loggingIn} style={{ marginTop: 6 }}>
-                  {ssoBusy === "azure" ? "OPENING MICROSOFT..." : (azureP.label || "LOGIN WITH MICROSOFT").toUpperCase()}
-                </button>
-              )}
-
-              {googleP && (
-                <div id="google-signin-button" style={{
-                  marginTop: 8, display: "flex", justifyContent: "center",
-                  width: "100%", minHeight: 40,
-                }} />
-              )}
-
-              <button type="button" style={{ marginTop: 8 }} onClick={enterDemo}>ENTER DEMO MODE</button>
-              <div className="gx-login-err">{loginErr}</div>
-            </form>
-          </div>
-        );
-      })()}
-
       {/* Topbar */}
       <header className="gx-topbar">
         <div>
@@ -851,17 +527,16 @@ export default function EndguardX() {
           </div>
           <div className="gx-conn-box">
             <label>MANAGER</label><div className="gx-conn-sep" />
-            <select value="" onChange={(e) => { if (e.target.value) setManagerUrl(e.target.value); }}>
+            <select value="" onChange={(e) => { if (e.target.value) { /* setManagerUrl(e.target.value); */ } }}>
               <option value="">-- saved --</option>
               {managers.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
-            <input type="text" value={managerUrl} onChange={(e) => setManagerUrl(e.target.value)} placeholder="https://manager:8443" />
+            <input type="text" value={managerUrl} onChange={() => { }} placeholder="https://manager:8443" disabled />
             <button className="gx-btn-mini" type="button" onClick={addManager}>+ ADD</button>
             <button className="gx-btn-mini danger" type="button" onClick={removeManager}>DEL</button>
             <div className="gx-conn-sep" />
             <label>TOKEN</label><div className="gx-conn-sep" />
-            <input type="password" value={token} onChange={(e) => setToken(e.target.value)}
-              placeholder="paste token (empty = demo)" style={{ width: 180 }} />
+            <input type="password" value={token} onChange={() => { }} placeholder="paste token" style={{ width: 180 }} disabled />
           </div>
           <button className={`gx-btn-connect ${connStatus === "live" ? "connected" : ""} ${connStatus === "demo" ? "demo" : ""}`}
             onClick={handleConnect} disabled={connecting}>
@@ -874,15 +549,15 @@ export default function EndguardX() {
             </span>
           </div>
           <div className={`gx-sync-time ${connStatus}`}>{lastSync}</div>
-          {authed && <button className="gx-btn-mini danger" onClick={logout}>LOGOUT</button>}
+          <button className="gx-btn-mini danger" onClick={handleLogout}>LOGOUT</button>
         </div>
       </header>
 
       <main className="gx-main">
         {demoMode && (
           <div className="gx-demo-banner">
-            <span>⚠ DEMO MODE — Showing simulated data. Enter manager URL and token to see real data.</span>
-            <button className="gx-btn-sm" onClick={logout}>Connect to Real Manager</button>
+            <span>⚠ DEMO MODE — Showing simulated data. Connect to real manager to see live data.</span>
+            <button className="gx-btn-sm" onClick={() => setDemoMode(false)}>Connect to Real Manager</button>
           </div>
         )}
         {errBanner && <div className="gx-err-banner">{errBanner}</div>}
@@ -1055,7 +730,7 @@ export default function EndguardX() {
                       : alertsPaged.map((a, i) => (
                         <tr key={i}>
                           <td>{fmtDateTime(a.timestamp)}</td>
-                          <td>{a.rule_name || a.rule || "—"}</td>   {/* ✅ fixed — no nested <td> */}
+                          <td>{a.rule_name || a.rule || "—"}</td>
                           <td><span className={`gx-badge gx-badge-${a.severity}`}>{a.severity}</span></td>
                           <td>{a.hostname}</td>
                           <td style={{ color: "var(--gx-muted)" }}>{a.agent_id}</td>
@@ -1149,7 +824,20 @@ export default function EndguardX() {
   );
 }
 
-// ---------- Sub-components ----------
+export const Route = createFileRoute("/dashboard")({
+  head: () => ({
+    meta: [
+      { title: "EndguardX - Endpoint Control Platform" },
+      { name: "description", content: "EndguardX endpoint control platform — monitor agents, events, alerts and policy violations from a single dashboard." },
+      { property: "og:title", content: "EndguardX - Endpoint Control Platform" },
+      { property: "og:description", content: "Monitor endpoint agents, events, alerts and policy violations in real time." },
+    ],
+  }),
+  component: DashboardComponent,
+  ssr: false,
+});
+
+// Sub-components
 function StatCard({ color, label, value, sub, trend }: {
   color: "cyan" | "red" | "yellow" | "green"; label: string;
   value: number | undefined; sub: string; trend: { dir: "up" | "down" | null; diff: number };

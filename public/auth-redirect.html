@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head><title>Authenticating...</title></head>
+<body>
+<script type="module">
+  import { PublicClientApplication } from
+    "https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.15.0/dist/index.esm.js";
+
+  const params = new URLSearchParams(window.location.search);
+  const clientId = params.get("clientId") || "placeholder";
+  const tenantId = params.get("tenantId") || "common";
+
+  try {
+    const msal = new PublicClientApplication({
+      auth: {
+        clientId,
+        authority: `https://login.microsoftonline.com/${tenantId}`,
+        redirectUri: window.location.origin + "/auth-redirect.html"
+                     + `?clientId=${clientId}&tenantId=${tenantId}`,
+      }
+    });
+    await msal.initialize();
+    await msal.handleRedirectPromise();
+  } catch(e) {
+    console.log("Redirect:", e);
+  } finally {
+    window.close();
+  }
+</script>
+</body>
+</html>
